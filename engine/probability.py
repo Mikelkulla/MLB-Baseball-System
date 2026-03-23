@@ -101,6 +101,7 @@ class ProbabilityEngine:
         home_prob: float,
         away_pitcher_score: float,
         home_pitcher_score: float,
+        park_scaling: float = 1.0,
     ) -> Tuple[float, float]:
         """
         Shift probabilities based on pitcher quality differential.
@@ -111,9 +112,14 @@ class ProbabilityEngine:
 
         Scale: 50-point pitcher edge → ±5% probability shift (max ±10%).
         With all pitchers at 50 (spring training / TBD): no adjustment.
+
+        park_scaling: multiplier from park_pitcher_scaling(home_team_key).
+          Coors (1.38) → 0.62 scaling → pitcher edge reduced 38%.
+          Petco (0.88) → 1.12 scaling → pitcher edge amplified 12%.
+          Neutral (1.00) → 1.00 → no change.
         """
         edge = away_pitcher_score - home_pitcher_score  # −100 to +100
-        prob_shift = (edge / 50.0) * 5.0               # −10 to +10 percentage points
+        prob_shift = (edge / 50.0) * 5.0 * park_scaling  # max ±(10 × park_scaling) pp
         new_away = away_prob + prob_shift
         new_home = home_prob - prob_shift
 
@@ -128,9 +134,9 @@ class ProbabilityEngine:
         if prob_shift != 0:
             logger.debug(
                 "apply_pitcher_adjustment: away_score=%.1f  home_score=%.1f  "
-                "edge=%+.1f  prob_shift=%+.2f%%  "
+                "edge=%+.1f  park_scaling=%.2f  prob_shift=%+.2f%%  "
                 "before=%.4f%%/%.4f%%  after=%.4f%%/%.4f%%",
-                away_pitcher_score, home_pitcher_score, edge, prob_shift,
+                away_pitcher_score, home_pitcher_score, edge, park_scaling, prob_shift,
                 away_prob, home_prob, result_away, result_home,
             )
         else:
@@ -146,6 +152,7 @@ class ProbabilityEngine:
         home_prob: float,
         away_bullpen_score: float,
         home_bullpen_score: float,
+        park_scaling: float = 1.0,
     ) -> Tuple[float, float]:
         """
         Shift probabilities based on team pitching depth differential.
@@ -156,9 +163,12 @@ class ProbabilityEngine:
 
         With both teams at 50 (spring training / no data): no adjustment.
         With real season stats: a 20-point quality gap → ~1.6pp probability shift.
+
+        park_scaling: same multiplier as pitcher adjustment — hitter parks dilute
+        pitching edges, pitcher parks amplify them.
         """
         edge = away_bullpen_score - home_bullpen_score  # -100 to +100
-        prob_shift = (edge / 50.0) * 2.0               # max ±4pp at 100-point edge
+        prob_shift = (edge / 50.0) * 2.0 * park_scaling  # max ±(4 × park_scaling) pp
 
         new_away = away_prob + prob_shift
         new_home = home_prob - prob_shift
@@ -174,9 +184,9 @@ class ProbabilityEngine:
         if prob_shift != 0:
             logger.debug(
                 "apply_bullpen_adjustment: away_score=%.1f  home_score=%.1f  "
-                "edge=%+.1f  prob_shift=%+.2f%%  "
+                "edge=%+.1f  park_scaling=%.2f  prob_shift=%+.2f%%  "
                 "before=%.4f%%/%.4f%%  after=%.4f%%/%.4f%%",
-                away_bullpen_score, home_bullpen_score, edge, prob_shift,
+                away_bullpen_score, home_bullpen_score, edge, park_scaling, prob_shift,
                 away_prob, home_prob, result_away, result_home,
             )
         else:

@@ -73,6 +73,10 @@ class Prediction:
     away_bullpen_score: float = 50.0
     home_bullpen_score: float = 50.0
 
+    # Park factor (home team's ballpark run factor; 1.00 = neutral)
+    park_factor: float = 1.0
+    park_ou_adj: float = 0.0   # park O/U adjustment (excl. altitude already in weather)
+
     # Gate flags
     sp_gate_blocked: bool = False
 
@@ -128,6 +132,9 @@ class Prediction:
             # Bullpen
             "away_bullpen_score": round(self.away_bullpen_score, 1),
             "home_bullpen_score": round(self.home_bullpen_score, 1),
+            # Park factor
+            "park_factor": round(self.park_factor, 2),
+            "park_ou_adj": round(self.park_ou_adj, 2),
             # Injuries / weather
             "away_injury_impact": round(self.away_injury_impact, 2),
             "home_injury_impact": round(self.home_injury_impact, 2),

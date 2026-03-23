@@ -75,3 +75,50 @@ def park_ou_adjustment(home_team_key: str) -> float:
     SENSITIVITY = 5.3
     factor = get_park_factor(home_team_key)
     return round((factor - LEAGUE_AVERAGE_FACTOR) * SENSITIVITY, 2)
+
+
+# Teams whose altitude effect is already handled by WeatherImpactEngine
+# (stadium.altitude_ft >= 4000 → +2.0 Over in weather_impact.py).
+# Excluding them here prevents double-counting the Coors altitude signal.
+_ALTITUDE_HANDLED_TEAMS = frozenset({"colorado_rockies"})
+
+
+def park_ou_adjustment_display(home_team_key: str) -> float:
+    """
+    Park O/U adjustment for display in the model table, excluding altitude parks.
+
+    Altitude parks (Coors Field) are already covered by WeatherImpactEngine's
+    altitude adjustment (+2.0 Over). Adding park_ou_adjustment on top would
+    double-count the same effect.
+
+    For all other parks this is a pure park-factor signal independent of weather:
+      Fenway  (1.10) → +0.53 pts Over
+      Petco   (0.88) → -0.64 pts Under
+      Neutral (1.00) →  0.00 pts
+
+    Returns 0.0 for altitude parks (Coors) since the weather engine already applies it.
+    """
+    if home_team_key in _ALTITUDE_HANDLED_TEAMS:
+        return 0.0
+    return park_ou_adjustment(home_team_key)
+
+
+def park_pitcher_scaling(home_team_key: str) -> float:
+    """
+    Returns a scaling multiplier for pitcher/bullpen probability adjustments
+    based on the park's run environment.
+
+    In a hitter-friendly park (high factor), pitcher quality edges are diluted —
+    the park's run inflation reduces the impact of a good/bad starter matchup.
+    In a pitcher-friendly park (low factor), pitching edges are amplified.
+
+    Formula: 2.0 - factor, clamped to [0.60, 1.25]
+    Examples:
+      Coors  (1.38) → 0.62  — pitcher edge reduced by 38%
+      Petco  (0.88) → 1.12  — pitcher edge amplified by 12%
+      Fenway (1.10) → 0.90  — slight dampening
+      Neutral(1.00) → 1.00  — no change
+    """
+    factor = get_park_factor(home_team_key)
+    scaling = 2.0 - factor
+    return round(min(1.25, max(0.60, scaling)), 4)

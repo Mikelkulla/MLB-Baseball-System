@@ -92,6 +92,8 @@
           <th title="Home starting pitcher and their impact score (0–100). 50 = league average. Higher = better pitcher. TBD means the team hasn't announced their starter yet.">Home SP</th>
           <th onclick="sortTable('away_bullpen_score')" title="Away team pitching depth score (0–100). Derived from team aggregate FIP, K/9, and BB/9 — a proxy for overall bullpen quality. 50 = league average. Scores below 10 games played default to 50 (spring training gate).">Away BP</th>
           <th onclick="sortTable('home_bullpen_score')" title="Home team pitching depth score (0–100). Derived from team aggregate FIP, K/9, and BB/9 — a proxy for overall bullpen quality. 50 = league average. Scores below 10 games played default to 50 (spring training gate).">Home BP</th>
+          <th onclick="sortTable('park_factor')" title="Home ballpark run factor (multi-year composite). 1.00 = league average. Above 1.00 = hitter-friendly (e.g. Coors 1.38). Below 1.00 = pitcher-friendly (e.g. Petco 0.88). Also scales pitcher/bullpen probability adjustments.">Park</th>
+          <th onclick="sortTable('park_ou_adj')" title="Park O/U adjustment in points based on ballpark run environment. Positive = leans Over, negative = leans Under. Coors (altitude) is excluded here — already covered by the weather engine.">Park O/U</th>
           <th title="Away team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Away ML</th>
           <th title="Home team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Home ML</th>
           <th title="Away team run line (always ±1.5 in MLB) and price. Source: DraftKings.">Away Spread</th>
@@ -116,7 +118,7 @@
       </thead>
       <tbody id="model-tbody">
         <tr>
-          <td colspan="26">
+          <td colspan="28">
             <div class="empty-state">
               <div class="empty-icon">⚾</div>
               <p>Loading…</p>

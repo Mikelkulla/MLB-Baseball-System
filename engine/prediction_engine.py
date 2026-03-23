@@ -23,6 +23,7 @@ from engine.probability import ProbabilityEngine
 from engine.ev_calculator import EVCalculator
 from engine.confidence import ConfidenceEngine
 from engine.pitcher_impact import PitcherImpactEngine
+from mlb.ballpark_factors import park_pitcher_scaling
 from config.mlb_config import TEAM_BY_KEY
 
 
@@ -130,20 +131,26 @@ class PredictionEngine:
             logger.debug("[%s] Injury adj — no injuries affecting probability", matchup_label)
 
         # --- 3b. Pitcher probability adjustment ---
+        # Park scaling: hitter parks (Coors 0.62×) dilute pitcher edges;
+        # pitcher parks (Petco 1.12×) amplify them.
+        park_scaling = park_pitcher_scaling(game.home_team)
         pre_pitch_away, pre_pitch_home = away_prob, home_prob
         away_prob, home_prob = self._prob.apply_pitcher_adjustment(
             away_prob, home_prob,
             game.away_pitcher_score,
             game.home_pitcher_score,
+            park_scaling=park_scaling,
         )
         pitcher_edge = game.away_pitcher_score - game.home_pitcher_score
         logger.debug(
             "[%s] Pitcher adj — Away SP: %s (%.0f/100)  Home SP: %s (%.0f/100)  "
-            "Edge: %+.1f  Prob shift: %+.2f%%  After: Away %.2f%% Home %.2f%%",
+            "Edge: %+.1f  Park scaling: %.2f (factor=%.2f)  "
+            "Prob shift: %+.2f%%  After: Away %.2f%% Home %.2f%%",
             matchup_label,
             game.away_pitcher_name, game.away_pitcher_score,
             game.home_pitcher_name, game.home_pitcher_score,
-            pitcher_edge, away_prob - pre_pitch_away,
+            pitcher_edge, park_scaling, game.park_factor,
+            away_prob - pre_pitch_away,
             away_prob, home_prob,
         )
 
@@ -153,6 +160,7 @@ class PredictionEngine:
             away_prob, home_prob,
             game.away_bullpen_score,
             game.home_bullpen_score,
+            park_scaling=park_scaling,
         )
         bullpen_edge = game.away_bullpen_score - game.home_bullpen_score
         logger.debug(
@@ -432,6 +440,8 @@ class PredictionEngine:
             home_pitcher_score=game.home_pitcher_score,
             away_bullpen_score=game.away_bullpen_score,
             home_bullpen_score=game.home_bullpen_score,
+            park_factor=game.park_factor,
+            park_ou_adj=game.park_ou_adj,
             away_injury_impact=game.away_injury_impact,
             home_injury_impact=game.home_injury_impact,
             weather_over_adj=game.weather_over_adj,

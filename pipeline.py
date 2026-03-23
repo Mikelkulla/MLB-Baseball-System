@@ -20,6 +20,7 @@ from data.weather_client import WeatherClient
 from data.draftking_scraper import DraftKingsScraper, SplitEntry
 from data.pitcher_client import PitcherClient
 from data.bullpen_client import BullpenClient
+from mlb.ballpark_factors import get_park_factor, park_ou_adjustment_display
 
 from engine.injury_impact import InjuryImpactEngine, InjuredPlayer
 from engine.weather_impact import WeatherImpactEngine
@@ -489,6 +490,14 @@ class MLBPipeline:
                     "[%s] Home bullpen: NOT FOUND for '%s' — using neutral 50",
                     matchup_label, game.home_team,
                 )
+
+            # --- Park Factors ---
+            game.park_factor = get_park_factor(game.home_team)
+            game.park_ou_adj = park_ou_adjustment_display(game.home_team)
+            logger.debug(
+                "[%s] Park factors — factor=%.2f  ou_adj=%+.2f",
+                matchup_label, game.park_factor, game.park_ou_adj,
+            )
 
             # --- Sharp Splits ---
             split = split_lookup.get((game.away_team, game.home_team))

@@ -93,6 +93,14 @@ class Game:
     away_bullpen_score: float = 50.0
     home_bullpen_score: float = 50.0
 
+    # Park factor (home team's ballpark run factor)
+    # 1.00 = league average; > 1.0 = hitter-friendly; < 1.0 = pitcher-friendly
+    # Used to scale pitcher/bullpen probability adjustments.
+    park_factor: float = 1.0
+    # Park O/U adjustment (points toward Over or Under from park characteristics)
+    # Excludes altitude parks — those are already covered by WeatherImpactEngine.
+    park_ou_adj: float = 0.0
+
     # Weather snapshot
     temperature_f: Optional[float] = None
     wind_speed_mph: Optional[float] = None
