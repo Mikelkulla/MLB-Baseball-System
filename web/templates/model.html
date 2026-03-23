@@ -77,7 +77,7 @@
            oninput="onSearch(this.value)">
     <span style="margin-left:auto;font-size:12px;color:var(--text-muted)" id="model-count"></span>
     <span class="refresh-badge" style="margin-left:12px">Refreshes in <span class="refresh-countdown" id="countdown">60</span>s</span>
-    <button class="btn btn-secondary btn-sm" onclick="loadModel()">↻ Refresh</button>
+    <button class="btn btn-secondary btn-sm" onclick="loadModel()" title="Reload all games from the DB — no pipeline run, no external calls">↻ Refresh</button>
     <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ CSV</button>
   </div>
 

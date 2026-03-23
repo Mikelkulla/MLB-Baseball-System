@@ -84,10 +84,8 @@ class BetLogger:
     def log_bet(self, prediction: Prediction, notes: str = "") -> Bet:
         """
         Log a new bet from a qualified prediction.
-        Raises ValueError if this matchup+date is already logged as ACTIVE.
+        Duplicate bets are allowed — the frontend shows a warning but does not block.
         """
-        self._check_duplicate(prediction)
-
         bet = Bet(
             bet_id=self._new_id(),
             sport=prediction.sport,
@@ -263,20 +261,31 @@ class BetLogger:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _check_duplicate(self, prediction: Prediction) -> None:
-        today_str = (prediction.game_date or datetime.utcnow()).strftime("%Y-%m-%d")
+    def logged_matchups_recent(self) -> dict[str, dict]:
+        """
+        Return the most recent logged bet per matchup for games in a ±1/+14 day window.
+        Used by Live Picks to mark rows and show diffs in the double-bet modal.
+        Returns a dict keyed by matchup string, value = key bet fields for comparison.
+        """
+        from datetime import date, timedelta
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        horizon   = (date.today() + timedelta(days=14)).isoformat()
         with read_db() as conn:
-            row = conn.execute("""
-                SELECT 1 FROM bets
-                WHERE matchup = ?
-                  AND result = 'ACTIVE'
-                  AND DATE(game_date) = ?
-                LIMIT 1
-            """, (prediction.matchup, today_str)).fetchone()
-        if row:
-            raise ValueError(
-                f"Duplicate bet detected: {prediction.matchup} already logged for {today_str}"
-            )
+            rows = conn.execute("""
+                SELECT matchup, picked_team_name, status_tier,
+                       bet_price, prob_pct, ev_pct, confidence_pct,
+                       units, placed_at
+                FROM bets
+                WHERE DATE(game_date) >= ? AND DATE(game_date) <= ?
+                ORDER BY placed_at DESC
+            """, (yesterday, horizon)).fetchall()
+        # Keep only the most recent entry per matchup
+        seen: dict[str, dict] = {}
+        for r in rows:
+            d = dict(r)
+            if d["matchup"] not in seen:
+                seen[d["matchup"]] = d
+        return seen
 
     def _find(self, bet_id: str) -> Optional[Bet]:
         with read_db() as conn:

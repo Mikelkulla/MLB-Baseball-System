@@ -4,7 +4,7 @@
 
 {% block content %}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-  <p style="color:var(--text-muted);font-size:13px">Changes are saved to <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px">output_data/config_overrides.json</code> and take effect on the next refresh.</p>
+  <p style="color:var(--text-muted);font-size:13px">Changes are saved to the DB and take effect on the next <strong>▶ Run Now</strong>.</p>
   <div style="display:flex;gap:8px">
     <button class="btn btn-secondary" onclick="resetConfig()">↺ Reset Defaults</button>
     <button class="btn btn-primary" id="save-btn" onclick="saveConfig()">✓ Save Changes</button>

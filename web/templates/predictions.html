@@ -14,7 +14,7 @@
     </div>
     <span style="margin-left:auto;font-size:12px;color:var(--text-muted)" id="picks-count"></span>
     <span class="refresh-badge" style="margin-left:12px">Refreshes in <span class="refresh-countdown" id="countdown">60</span>s</span>
-    <button class="btn btn-secondary btn-sm" onclick="loadPredictions()">↻ Refresh</button>
+    <button class="btn btn-secondary btn-sm" onclick="loadPredictions()" title="Reload picks from the DB — no pipeline run, no external calls">↻ Refresh</button>
   </div>
 
   <table id="predictions-table">
@@ -52,6 +52,17 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="log-game-id">
+      <div id="log-duplicate-warning" style="display:none">
+        <div class="duplicate-warning">
+          ⚠️ Already in Bet Log — logging again creates a duplicate entry.
+        </div>
+        <table class="diff-table" id="log-diff-table">
+          <thead>
+            <tr><th></th><th>Logged</th><th>Now</th></tr>
+          </thead>
+          <tbody id="log-diff-body"></tbody>
+        </table>
+      </div>
       <div class="form-group">
         <label class="form-label">Game</label>
         <div id="log-game-desc" style="font-size:13px;color:var(--text-secondary)"></div>

@@ -35,7 +35,7 @@ The system:
 - Fetches live MLB odds, injuries, weather, DraftKings sharp splits, pitcher data, and bullpen data
 - Runs a multi-layer prediction engine (probability → EV → confidence → tier)
 - Serves a browser dashboard (FastAPI + Jinja2) with Live Picks and MLB Model pages
-- Saves output as JSON/CSV files in `output_data/`
+- Persists output to SQLite (`output_data/mlb.db`) — no JSON files
 
 **How to run:**
 ```bash
@@ -82,7 +82,7 @@ MLB Baseball System/
 │   └── bullpen_impact.py     # Bullpen depth score (0-100) from team pitching stats
 │
 ├── output/
-│   ├── predictions.py        # LivePredictions — in-memory + JSON/CSV save
+│   ├── predictions.py        # LivePredictions — in-memory + SQLite upsert
 │   ├── clv_tracker.py        # Closing Line Value tracking
 │   └── bet_logger.py         # Manual bet logging
 │
@@ -128,9 +128,8 @@ MLB Baseball System/
 │   ├── web/index.html        # Pages, API endpoints, model columns
 │   └── reference/index.html  # All formulas on one page
 │
-├── output_data/              # Runtime JSON/CSV output (gitignored)
-│   ├── live_predictions_YYYYMMDD.json
-│   └── mlb_model_YYYYMMDD.json
+├── output_data/              # Runtime DB + optional CSV exports (gitignored)
+│   └── mlb.db                # SQLite — predictions, bets, clv tables
 │
 ├── CLAUDE.md                 # This file
 └── CLAUDE_NOTES.md           # Future enhancement roadmap
@@ -195,9 +194,10 @@ MLB Baseball System/
 ┌───────────────────────▼─────────────────────────────────────┐
 │  OUTPUT                                                     │
 │                                                             │
-│  qualified picks (non-PASS) → live_predictions_YYYYMMDD.json│
-│  all games (incl. PASS)     → mlb_model_YYYYMMDD.json       │
-│  both                       → CSV (31 fields)               │
+│  all games (incl. PASS)  → SQLite predictions table (upsert) │
+│  qualified picks served  → /api/predictions (DB query)       │
+│  full model served       → /api/predictions/model (DB query) │
+│  optional CSV export     → output_data/*.csv on demand       │
 └─────────────────────────────────────────────────────────────┘
 ```
 

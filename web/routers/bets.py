@@ -26,6 +26,16 @@ class RefreshCLVRequest(BaseModel):
     current_price: int
 
 
+@router.get("/logged-matchups")
+def logged_matchups():
+    """
+    Return logged bets for upcoming games (±1/+14 day window), keyed by matchup.
+    Used by Live Picks to highlight rows and show a diff when double-logging.
+    """
+    bl = _get_logger()
+    return {"bets": bl.logged_matchups_recent()}
+
+
 @router.get("")
 def get_bets(status: str | None = None):
     bl = _get_logger()
@@ -65,11 +75,8 @@ def log_bet(req: LogBetRequest):
         except Exception:
             pass
 
-    try:
-        bet = _get_logger().log_bet(pred, notes=req.notes)
-        return {"success": True, "bet": bet.to_dict()}
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    bet = _get_logger().log_bet(pred, notes=req.notes)
+    return {"success": True, "bet": bet.to_dict()}
 
 
 @router.post("/settle")
