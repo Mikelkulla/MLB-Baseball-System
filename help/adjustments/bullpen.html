@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bullpen Scoring — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Adjustments / Bullpen</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="bullpen.html" class="active"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Bullpen Scoring</h1>
+      <p>Team pitching depth scored 0–100, its proportional probability shift, and why the max adjustment is ±4pp vs ±10pp for starters.</p>
+    </div>
+
+    <h2>What the Bullpen Score Represents</h2>
+    <p>The bullpen score is a <strong>team-aggregate pitching proxy</strong> using the MLB Stats API's season pitching stats for the entire staff (starters + relievers). It correlates with overall bullpen quality even though the probable starter is already scored separately.</p>
+
+    <div class="box info">
+      <div class="box-title">Acknowledged approximation</div>
+      <p>The MLB Stats API returns whole-staff aggregate stats, not pure reliever stats. In practice, aggregate FIP/K9/BB9 correlates well with true bullpen quality because the probable starter is scored in the pitcher engine — the remaining signal in the aggregate reflects reliever quality.</p>
+    </div>
+
+    <h2>Scoring Formula</h2>
+    <p>Uses the same three FIP-based metrics as the pitcher engine (HR/9 excluded — too noisy for bullpen aggregates).</p>
+    <div class="formula">
+      <div class="label">Bullpen Composite Score</div>
+      fip_score  = (league_avg×2 − FIP)  / (league_avg×2) × 100   <span class="cm"># lower FIP = higher score</span><br>
+      k9_score   = K/9  / (league_avg×2) × 100                     <span class="cm"># higher K/9 = higher score</span><br>
+      bb9_score  = (league_avg×2 − BB/9) / (league_avg×2) × 100   <span class="cm"># lower BB/9 = higher score</span><br>
+      <br>
+      score = fip_score×0.45 + k9_score×0.30 + bb9_score×0.25<br>
+      <span class="cm"># Clamped to [0, 100]</span>
+    </div>
+
+    <h3>League Averages Used</h3>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Metric</th><th>League avg (2024)</th><th>Weight</th></tr>
+        <tr><td>FIP</td><td>4.20</td><td>45%</td></tr>
+        <tr><td>K/9</td><td>8.80</td><td>30%</td></tr>
+        <tr><td>BB/9</td><td>3.10</td><td>25%</td></tr>
+      </table>
+    </div>
+
+    <h2>Spring Training Gate</h2>
+    <p>Teams with fewer than <strong>10 games played</strong> in the current season return a score of <strong>50.0</strong> (neutral). No adjustment fires. This prevents garbage pre-season samples from influencing probability.</p>
+
+    <h2>Probability Shift</h2>
+    <p>Starters pitch ~60% of innings; bullpens pitch ~40%. The max bullpen shift (±4pp) is proportional to ±10pp for starters.</p>
+    <div class="formula">
+      <div class="label">Bullpen Probability Adjustment</div>
+      edge = away_bullpen_score − home_bullpen_score<br>
+      prob_shift = (edge / 50.0) × 2.0 × park_scaling   <span class="cm"># max ±4pp base</span><br>
+      <br>
+      <span class="cm"># Example: away BP score 70, home BP score 45, park neutral</span><br>
+      edge = +25,  prob_shift = (25/50) × 2.0 × 1.0 = +1.0pp toward away
+    </div>
+
+    <p><strong>Park scaling:</strong> same as pitcher — Coors (0.62) reduces the max to ±2.5pp; Petco (1.12) increases it to ±4.5pp.</p>
+
+    <h2>Score Interpretation</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Score</th><th>Meaning</th></tr>
+        <tr><td class="mono" style="color:var(--green)">65–100</td><td>Elite bullpen — strong closing ability, low walk rate</td></tr>
+        <tr><td class="mono" style="color:var(--green)">55–64</td><td>Above average</td></tr>
+        <tr><td class="mono">50</td><td>League average / pre-season gate</td></tr>
+        <tr><td class="mono" style="color:var(--red)">40–49</td><td>Below average — walk-prone, poor late innings</td></tr>
+        <tr><td class="mono" style="color:var(--red)">0–39</td><td>Weak — high FIP, poor strikeout rate</td></tr>
+      </table>
+    </div>
+
+    <h2>Data Source</h2>
+    <p>Fetched from the MLB Stats API season stats endpoint. Refreshed every 120 minutes by default.</p>
+    <pre><code><span class="cm"># Endpoint used:</span>
+GET /api/v1/teams/{mlb_team_id}/stats?stats=season&group=pitching&season=YYYY
+
+<span class="cm"># FIP is recalculated from raw counts:</span>
+<span class="cm"># homeruns, baseOnBalls, hitByPitch, strikeOuts, inningsPitched</span></code></pre>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># engine/bullpen_impact.py — scoring</span>
+<span class="kw">class</span> <span class="fn">BullpenImpactEngine</span>:
+    score(stats: BullpenStats) → float        <span class="cm"># 0–100</span>
+    score_and_attach(stats) → BullpenStats
+
+<span class="cm"># data/bullpen_client.py — data fetch</span>
+<span class="kw">class</span> <span class="fn">BullpenClient</span>:
+    fetch_team_pitching(game_date) → dict[str, BullpenStats]
+
+<span class="cm"># models/bullpen.py — data model</span>
+<span class="cm">@dataclass BullpenStats: team_key, era, k_per_9, bb_per_9, hr_per_9, fip, games, impact_score</span></code></pre>
+  </main>
+</div>
+</body>
+</html>

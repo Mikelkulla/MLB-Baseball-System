@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Architecture</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="index.html" class="active"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>System Architecture</h1>
+      <p>How the system is structured, where every file lives, and how data flows from raw API responses to a final bet pick.</p>
+    </div>
+
+    <h2>What This System Does</h2>
+    <p>The MLB Betting System is a Python-based moneyline prediction engine that fetches live data from five sources, runs a multi-layer probability and EV model, and serves results through a FastAPI browser dashboard.</p>
+    <ul class="check">
+      <li>Fetches live odds, injuries, weather, sharp-money splits, and pitcher data</li>
+      <li>Computes vig-free probabilities adjusted for pitching, bullpen, and injuries</li>
+      <li>Calculates Expected Value, confidence, and tier for every game</li>
+      <li>Applies four safety layers before recommending a unit size</li>
+      <li>Serves a live dashboard at <code>localhost:8000</code></li>
+    </ul>
+
+    <h2>End-to-End Data Flow</h2>
+    <div class="flow">
+      <div class="phase">Phase 1 — Data Collection</div>
+      odds_client      → Game[] (ML, spread, total, opening lines)<br>
+      injury_scraper   → RawInjury[] (Covers.com)<br>
+      weather_client   → WeatherData{} (WeatherAPI.com)<br>
+      dk_scraper       → SplitEntry[] (DK Network — handle% / bets%)<br>
+      pitcher_client   → PitcherStats{} (MLB Stats API probable starters)<br>
+      bullpen_client   → BullpenStats{} (MLB Stats API team pitching)<br>
+      <br>
+      <div class="phase">Phase 1B — Apply Impacts</div>
+      injury_engine    → game.away/home_injury_impact (prob delta)<br>
+                       → game.sp_gate_blocked (True if SP Out/Doubtful)<br>
+      weather_engine   → game.weather_over/under_adj (O/U points)<br>
+      pitcher_engine   → game.away/home_pitcher_score (0–100)<br>
+      bullpen_engine   → game.away/home_bullpen_score (0–100)<br>
+      park_factors     → game.park_factor, game.park_ou_adj<br>
+      dk_splits        → game.away/home_handle_pct, game.sharp_split_score<br>
+      <br>
+      <div class="phase">Phase 2 — Prediction Engine (per game)</div>
+      1. Vig-free ML probability (away%, home%)<br>
+      2. Injury probability adjustment<br>
+      3. Pitcher probability adjustment (park-scaled, max ±10pp)<br>
+      4. Bullpen probability adjustment (park-scaled, max ±4pp)<br>
+      5. EV for both sides → pick the higher EV side<br>
+      6. Negative EV → PASS immediately<br>
+      7. CLV delta (opening vs current spread)<br>
+      8. SharpSplit = ourHandle% − ourBets%<br>
+      9. WPI = 50 + (ourHandle − 50) × 1.5<br>
+      10. Confidence = evNorm×0.5 + SharpScore×0.5<br>
+      11–13. Safety caps (steam, lineflip, WPI gates)<br>
+      14. Tier assignment → Prediction<br>
+      <br>
+      <div class="phase">Output</div>
+      Qualified picks (non-PASS) → live_predictions_YYYYMMDD.json<br>
+      All games (incl. PASS)    → mlb_model_YYYYMMDD.json<br>
+      Both                      → CSV files + browser dashboard
+    </div>
+
+    <h2>Directory Structure</h2>
+    <pre><code>MLB Baseball System/
+├── <span class="kw">app.py</span>                    <span class="cm"># FastAPI entry point</span>
+├── <span class="kw">main.py</span>                   <span class="cm"># CLI entry (manual refresh)</span>
+├── <span class="kw">pipeline.py</span>               <span class="cm"># MLBPipeline — orchestrates all phases</span>
+│
+├── config/
+│   ├── <span class="fn">settings.py</span>           <span class="cm"># API keys, tier thresholds, weights</span>
+│   └── <span class="fn">mlb_config.py</span>         <span class="cm"># Team defs, position weights, SP gate</span>
+│
+├── models/
+│   ├── <span class="fn">game.py</span>               <span class="cm"># Game, GameOdds, OddsLine dataclasses</span>
+│   ├── <span class="fn">prediction.py</span>         <span class="cm"># Prediction dataclass + to_dict()</span>
+│   ├── <span class="fn">pitcher.py</span>            <span class="cm"># PitcherStats dataclass</span>
+│   └── <span class="fn">bullpen.py</span>            <span class="cm"># BullpenStats dataclass</span>
+│
+├── data/                     <span class="cm"># External data clients (Phase 1)</span>
+│   ├── <span class="fn">odds_client.py</span>
+│   ├── <span class="fn">injury_scraper.py</span>
+│   ├── <span class="fn">weather_client.py</span>
+│   ├── <span class="fn">draftking_scraper.py</span>
+│   ├── <span class="fn">pitcher_client.py</span>
+│   └── <span class="fn">bullpen_client.py</span>
+│
+├── engine/                   <span class="cm"># Calculation modules (Phase 2)</span>
+│   ├── <span class="fn">probability.py</span>        <span class="cm"># Vig removal + all prob adjustments</span>
+│   ├── <span class="fn">ev_calculator.py</span>      <span class="cm"># EV% from probability + odds</span>
+│   ├── <span class="fn">confidence.py</span>         <span class="cm"># V8.0 confidence formula + tier</span>
+│   ├── <span class="fn">prediction_engine.py</span>  <span class="cm"># Orchestrates engine per game</span>
+│   ├── <span class="fn">injury_impact.py</span>      <span class="cm"># Probability delta from injuries</span>
+│   ├── <span class="fn">weather_impact.py</span>     <span class="cm"># O/U adjustment from weather</span>
+│   ├── <span class="fn">pitcher_impact.py</span>     <span class="cm"># Pitcher score 0–100</span>
+│   └── <span class="fn">bullpen_impact.py</span>     <span class="cm"># Bullpen score 0–100</span>
+│
+├── mlb/
+│   ├── <span class="fn">teams.py</span>              <span class="cm"># Team name normalisation</span>
+│   ├── <span class="fn">stadiums.py</span>           <span class="cm"># Stadium → city/dome/altitude mapping</span>
+│   └── <span class="fn">ballpark_factors.py</span>   <span class="cm"># Park run factors (30 parks)</span>
+│
+├── output/
+│   ├── <span class="fn">predictions.py</span>        <span class="cm"># In-memory + JSON/CSV save</span>
+│   ├── <span class="fn">clv_tracker.py</span>        <span class="cm"># Closing Line Value tracking</span>
+│   └── <span class="fn">bet_logger.py</span>         <span class="cm"># Manual bet logging</span>
+│
+├── scheduler/
+│   └── <span class="fn">runner.py</span>             <span class="cm"># APScheduler background refresh jobs</span>
+│
+├── web/
+│   ├── routers/              <span class="cm"># FastAPI route handlers</span>
+│   └── templates/            <span class="cm"># Jinja2 HTML pages</span>
+│
+└── output_data/              <span class="cm"># Runtime JSON/CSV (gitignored)</span></code></pre>
+
+    <h2>Core Domain Objects</h2>
+    <h3>Game <code>models/game.py</code></h3>
+    <p>The primary object that flows through every stage. Created by <code>odds_client.py</code> and annotated by each engine module.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td class="mono">game_id</td><td>str</td><td>Unique ID from The Odds API</td></tr>
+        <tr><td class="mono">away_team / home_team</td><td>str</td><td>Canonical team key (e.g. <code>new_york_yankees</code>)</td></tr>
+        <tr><td class="mono">odds</td><td>GameOdds</td><td>ML, spread, total, opening lines, consensus probs</td></tr>
+        <tr><td class="mono">away/home_injury_impact</td><td>float</td><td>Probability delta from injuries (negative = hurt)</td></tr>
+        <tr><td class="mono">weather_over/under_adj</td><td>float</td><td>O/U line adjustment points from weather</td></tr>
+        <tr><td class="mono">sp_gate_blocked</td><td>bool</td><td>True if probable SP is Out/Doubtful</td></tr>
+        <tr><td class="mono">away/home_pitcher_score</td><td>float</td><td>0–100 pitcher quality (50 = neutral)</td></tr>
+        <tr><td class="mono">away/home_bullpen_score</td><td>float</td><td>0–100 team pitching depth (50 = neutral)</td></tr>
+        <tr><td class="mono">park_factor</td><td>float</td><td>Home park run factor (1.00 = league average)</td></tr>
+        <tr><td class="mono">park_ou_adj</td><td>float</td><td>O/U adjustment from park characteristics</td></tr>
+        <tr><td class="mono">sharp_split_score</td><td>float</td><td>SSS (default 50 = neutral, not 0)</td></tr>
+        <tr><td class="mono">away/home_handle_pct</td><td>float</td><td>DraftKings handle% per side</td></tr>
+      </table>
+    </div>
+
+    <div class="box warn">
+      <div class="box-title">Important: All defaults are 50.0, not 0.0</div>
+      <p>Fields like <code>sharp_split_score</code>, <code>away_pitcher_score</code>, and <code>away_bullpen_score</code> default to <strong>50.0</strong> (neutral). Using 0.0 would penalise the confidence score when data is unavailable — that would be incorrect behavior.</p>
+    </div>
+
+    <h3>Prediction <code>models/prediction.py</code></h3>
+    <p>The output object produced by the engine for each game. One <code>Prediction</code> per game.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Field group</th><th>Key fields</th></tr>
+        <tr><td>Odds</td><td><code>away_ml</code>, <code>home_ml</code>, <code>away_spread</code>, <code>total_line</code></td></tr>
+        <tr><td>Both-side metrics</td><td><code>away_prob_pct</code>, <code>home_prob_pct</code>, <code>away_ev_pct</code>, <code>home_ev_pct</code></td></tr>
+        <tr><td>Picked side</td><td><code>picked_team</code>, <code>bet_price</code>, <code>prob_pct</code>, <code>ev_pct</code></td></tr>
+        <tr><td>Score</td><td><code>confidence_pct</code>, <code>units</code>, <code>status</code>, <code>safe_units</code></td></tr>
+        <tr><td>Components</td><td><code>away/home_pitcher_score</code>, <code>away/home_bullpen_score</code>, <code>park_factor</code>, <code>park_ou_adj</code></td></tr>
+        <tr><td>Safety</td><td><code>clv_delta</code>, <code>sp_gate_blocked</code></td></tr>
+      </table>
+    </div>
+
+    <h2>Key Design Principles</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Pick by EV, not probability</h4>
+          <p>A 45% underdog at +280 can have better EV than a 55% favourite at -190. The system always picks the highest-EV side. This is the core V8.0 alignment.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Fielding-independent pitcher scoring</h4>
+          <p>ERA and WHIP are stored for display but excluded from scoring. FIP, K/9, BB/9, and HR/9 are used because they don't depend on the defense behind the pitcher.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Park-scaled pitching edges</h4>
+          <p>Pitcher and bullpen probability adjustments are multiplied by a park scaling factor. Coors Field (1.38) reduces the edge by 38% — great pitching matters less there. Petco Park (0.88) amplifies the edge by 12%.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Multiple safety layers before units are assigned</h4>
+          <p>Steam-against cap, steam auto-pass, SP gate, WPI gate, and LineFlip cap all run after confidence is computed. They can reduce or zero out the recommended units without changing the tier label.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

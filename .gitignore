@@ -6,3 +6,4 @@ venv
 CLAUDE_NOTES.md
 __pycache__
 .claude/
+test.md

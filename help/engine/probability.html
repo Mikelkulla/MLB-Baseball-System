@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Probability — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Engine / Probability</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="probability.html" class="active"><span class="icon">📊</span> Probability</a>
+    <a href="ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Probability Engine</h1>
+      <p>How raw American odds are converted to vig-free true probabilities, then adjusted by injuries, pitching, and bullpen quality.</p>
+    </div>
+
+    <h2>Step 1 — Vig Removal</h2>
+    <p>Bookmakers embed a margin (the "vig" or "juice") into their lines. Both raw implied probabilities sum to more than 100%. We remove this overround before any analysis.</p>
+
+    <h3>Raw Implied Probability from American Odds</h3>
+    <div class="formula">
+      <div class="label">American → Implied</div>
+      If odds ≥ 0:  raw_prob = 100 / (odds + 100)<br>
+      If odds &lt; 0:  raw_prob = |odds| / (|odds| + 100)
+    </div>
+
+    <h3>Remove the Overround</h3>
+    <div class="formula">
+      <div class="label">Vig-Free Probability</div>
+      total = raw_away + raw_home         <span class="cm"># will be > 1.0 (e.g. 1.05 = 5% vig)</span><br>
+      true_away = raw_away / total × 100<br>
+      true_home = raw_home / total × 100<br>
+      <br>
+      <span class="cm"># Example: -150 / -130</span><br>
+      raw_away = 0.600,  raw_home = 0.565,  total = 1.165 (16.5% vig)<br>
+      true_away = 51.5%,  true_home = 48.5%
+    </div>
+    <p>Result: two true probabilities that always sum to exactly 100%.</p>
+
+    <h2>Step 2 — Injury Adjustment</h2>
+    <p>See <a href="../adjustments/injuries.html">Injury Impact</a> for how the delta is calculated. The adjustment uses a <strong>net effect</strong> so the sum stays at 100%.</p>
+    <div class="formula">
+      <div class="label">Injury Probability Adjustment</div>
+      net = home_injury_delta − away_injury_delta<br>
+      new_away = away_prob + net / 2<br>
+      new_home = home_prob − net / 2<br>
+      <span class="cm"># Re-normalise to sum = 100 after shift</span>
+    </div>
+    <p><strong>Sign convention:</strong> injury_impact is stored as a negative number when a team is hurt. A team missing its closer (impact = −2.0) hurts them → opponent's probability rises.</p>
+
+    <h2>Step 3 — Pitcher Adjustment</h2>
+    <p>When a dominant ace faces a weak starter, the model shifts probability independently from the market. Maximum shift is ±10 percentage points (scaled by park factor).</p>
+    <div class="formula">
+      <div class="label">Pitcher Probability Adjustment</div>
+      edge = away_pitcher_score − home_pitcher_score   <span class="cm"># range −100 to +100</span><br>
+      prob_shift = (edge / 50.0) × 5.0 × park_scaling <span class="cm"># max ±10pp × park_scaling</span><br>
+      new_away = away_prob + prob_shift<br>
+      new_home = home_prob − prob_shift<br>
+      <span class="cm"># Re-normalise to sum = 100</span>
+    </div>
+    <p><strong>Both pitchers at 50</strong> (spring training / TBD) → edge = 0 → no shift.</p>
+    <p><strong>Park scaling:</strong> <code>park_scaling = 2.0 − park_factor</code>, clamped [0.60, 1.25]. At Coors (factor=1.38): scaling=0.62, reducing the max shift to ±6.2pp.</p>
+
+    <h2>Step 4 — Bullpen Adjustment</h2>
+    <p>Bullpen handles ~40% of innings. The max adjustment is ±4pp base (proportionally lower than the ±10pp starter adjustment).</p>
+    <div class="formula">
+      <div class="label">Bullpen Probability Adjustment</div>
+      edge = away_bullpen_score − home_bullpen_score<br>
+      prob_shift = (edge / 50.0) × 2.0 × park_scaling <span class="cm"># max ±4pp × park_scaling</span><br>
+      new_away = away_prob + prob_shift<br>
+      new_home = home_prob − prob_shift<br>
+      <span class="cm"># Re-normalise to sum = 100</span>
+    </div>
+    <p><strong>Both teams at 50</strong> (spring training / fewer than 10 games) → no shift.</p>
+
+    <h2>Final Probability Values</h2>
+    <p>After all four steps, <code>away_prob_pct</code> and <code>home_prob_pct</code> represent the model's true estimate of each team's win probability. These are used to calculate EV.</p>
+
+    <div class="box info">
+      <div class="box-title">Why probabilities sum to more than market-implied</div>
+      <p>When pitcher/injury adjustments push one side's probability above market-implied, the EV for that side becomes positive. This is the model's edge — it disagrees with the market in a statistically grounded way. Without adjustments active (e.g. spring training), both EVs equal <code>−(vig%)</code>.</p>
+    </div>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># File: engine/probability.py</span>
+<span class="kw">class</span> <span class="fn">ProbabilityEngine</span>:
+    remove_vig(away_odds, home_odds)                             <span class="cm"># Step 1</span>
+    apply_injury_adjustment(away_p, home_p, away_d, home_d)     <span class="cm"># Step 2</span>
+    apply_pitcher_adjustment(away_p, home_p, away_s, home_s, park_scaling)  <span class="cm"># Step 3</span>
+    apply_bullpen_adjustment(away_p, home_p, away_s, home_s, park_scaling)  <span class="cm"># Step 4</span></code></pre>
+  </main>
+</div>
+</body>
+</html>

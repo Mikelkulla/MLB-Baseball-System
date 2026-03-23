@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expected Value — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Engine / Expected Value</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="ev.html" class="active"><span class="icon">💰</span> Expected Value</a>
+    <a href="confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Expected Value</h1>
+      <p>How EV% is calculated, what it means, why the pick is chosen by EV not probability, and when EV is shown as "—".</p>
+    </div>
+
+    <h2>EV Formula</h2>
+    <p>Expected Value measures the average return per unit staked across many identical bets. A positive EV% means profitable over the long run.</p>
+    <div class="formula">
+      <div class="label">American Odds → Decimal</div>
+      If odds ≥ 0:  decimal = 1 + odds / 100<br>
+      If odds &lt; 0:  decimal = 1 + 100 / |odds|<br>
+      <br>
+      <span class="cm"># Examples: +130 → 2.30,  -150 → 1.667,  -110 → 1.909</span>
+    </div>
+    <div class="formula">
+      <div class="label">EV% Calculation (stake = 1 unit)</div>
+      profit_if_win = decimal − 1<br>
+      EV = (prob × profit_if_win) − ((1 − prob) × 1)<br>
+      EV% = EV × 100<br>
+      <br>
+      <span class="cm"># Example: 55% probability at -110</span><br>
+      decimal = 1.909,  profit = 0.909<br>
+      EV = (0.55 × 0.909) − (0.45 × 1) = 0.500 − 0.450 = +0.050<br>
+      EV% = +5.0%
+    </div>
+
+    <h2>What EV% Means in Practice</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>EV%</th><th>Meaning</th></tr>
+        <tr><td class="mono" style="color:var(--green)">+5.0%</td><td>Expected to return +0.05u profit per 1u bet, long-term average</td></tr>
+        <tr><td class="mono" style="color:var(--green)">+2.0%</td><td>Thin edge — qualifies but treated carefully</td></tr>
+        <tr><td class="mono">0.0%</td><td>Break-even — market probability exactly matches model probability</td></tr>
+        <tr><td class="mono" style="color:var(--red)">−4.7%</td><td>The typical EV when NO adjustments are active (spring training) — the vig%</td></tr>
+        <tr><td class="mono" style="color:var(--red)">−10%+</td><td>Extreme underdog at poor price</td></tr>
+      </table>
+    </div>
+
+    <div class="box info">
+      <div class="box-title">Why both sides show the same EV in spring training</div>
+      <p>When pitcher/injury adjustments are inactive (all scores = 50), the model probability equals the market-implied probability. In this case <code>EV = 1/overround − 1</code>, which is the same negative value for both sides. EV only diverges between sides when the model disagrees with the market.</p>
+    </div>
+
+    <h2>Odds Gate (±400)</h2>
+    <p>Lines outside <code>−400</code> to <code>+400</code> return <code>None</code> from the EV calculator and display as <strong>"—"</strong> in the model table.</p>
+    <p>Reason: extreme favorites (e.g. −800) are not realistic betting targets — the required edge to achieve positive EV on a −800 line is unreachable, and the pick would be systematically misleading.</p>
+    <pre><code><span class="cm"># config/settings.py</span>
+EV_ODDS_MIN = <span class="num">-400</span>
+EV_ODDS_MAX = <span class="num">+400</span></code></pre>
+
+    <h2>Pick Selection — EV, Not Probability (V8.0)</h2>
+    <p>The system calculates EV for <strong>both sides</strong> independently, then picks the side with the higher EV.</p>
+    <div class="formula">
+      <div class="label">Pick Selection</div>
+      away_ev = EVCalculator.calculate(away_prob, away_ml_odds)<br>
+      home_ev = EVCalculator.calculate(home_prob, home_ml_odds)<br>
+      <br>
+      pick = side with higher EV<br>
+      if best_ev &lt; 0: → PASS immediately (negative EV gate)
+    </div>
+    <div class="box warn">
+      <div class="box-title">Why EV, not probability?</div>
+      <p>A 45% underdog at +280 has better EV than a 55% favourite at −190. Picking by probability alone would always take the higher-probability side, even when the price is terrible. Picking by EV ensures you only bet when the odds offer value relative to the model's probability estimate.</p>
+    </div>
+
+    <h2>Negative EV Gate</h2>
+    <p>If the best EV across both sides is negative, the game is immediately classified as <span class="pill pass">PASS</span> — no further processing. This is the single most important filter. During spring training when no adjustments are active, every game will fail this gate.</p>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># File: engine/ev_calculator.py</span>
+<span class="kw">class</span> <span class="fn">EVCalculator</span>:
+    decimal_from_american(american_odds) → float
+    calculate(prob_pct, american_odds) → Optional[float]   <span class="cm"># None if outside gate</span>
+    is_positive_ev(prob_pct, american_odds) → bool</code></pre>
+  </main>
+</div>
+</body>
+</html>

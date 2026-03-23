@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Interface &amp; API — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Web &amp; API</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="index.html" class="active"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Web Interface &amp; API</h1>
+      <p>Dashboard pages, REST endpoints, and MLB Model table columns.</p>
+    </div>
+
+    <h2>Dashboard Pages</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>URL</th><th>Page</th><th>Description</th></tr>
+        <tr><td class="mono">/dashboard</td><td>Dashboard</td><td>Summary cards, feed health status, last refresh times</td></tr>
+        <tr><td class="mono">/predictions</td><td>Live Picks</td><td>Qualified picks (GOLD+) with Log Bet button — only non-PASS</td></tr>
+        <tr><td class="mono">/model</td><td>MLB Model</td><td>ALL games, all tiers including PASS, 28 columns</td></tr>
+        <tr><td class="mono">/bets</td><td>Bet Logger</td><td>Track manually logged bets</td></tr>
+        <tr><td class="mono">/analytics</td><td>Analytics</td><td>Historical performance tracking</td></tr>
+        <tr><td class="mono">/config</td><td>Config</td><td>Scheduler settings and interval presets</td></tr>
+      </table>
+    </div>
+
+    <h2>API Endpoints</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+        <tr><td class="mono">GET</td><td><code>/api/predictions</code></td><td>Qualified picks (non-PASS) from today's data</td></tr>
+        <tr><td class="mono">GET</td><td><code>/api/predictions/model</code></td><td>All games including PASS — full model output</td></tr>
+        <tr><td class="mono">POST</td><td><code>/api/predictions/refresh</code></td><td>Trigger full pipeline refresh (all phases)</td></tr>
+        <tr><td class="mono">POST</td><td><code>/api/predictions/refresh/odds</code></td><td>Odds only refresh</td></tr>
+        <tr><td class="mono">POST</td><td><code>/api/predictions/refresh/pitchers</code></td><td>Pitcher data only</td></tr>
+        <tr><td class="mono">GET</td><td><code>/api/health</code></td><td>Feed status per data source (last refresh, errors)</td></tr>
+        <tr><td class="mono">GET</td><td><code>/api/bets</code></td><td>All logged bets</td></tr>
+        <tr><td class="mono">POST</td><td><code>/api/bets/log</code></td><td>Log a bet manually</td></tr>
+        <tr><td class="mono">GET</td><td><code>/api/config</code></td><td>Current scheduler configuration</td></tr>
+        <tr><td class="mono">GET</td><td><code>/api/scheduler</code></td><td>Scheduler job status</td></tr>
+      </table>
+    </div>
+
+    <h2>MLB Model Table — All 28 Columns</h2>
+    <p>The <code>/model</code> page shows every game including PASS picks. Columns left to right:</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>#</th><th>Column</th><th>Description</th></tr>
+        <tr><td>1</td><td>Date</td><td>Game date (local time)</td></tr>
+        <tr><td>2</td><td>Matchup</td><td>Away @ Home</td></tr>
+        <tr><td>3</td><td>Away SP</td><td>Away starting pitcher name and score (0–100)</td></tr>
+        <tr><td>4</td><td>Home SP</td><td>Home starting pitcher name and score (0–100)</td></tr>
+        <tr><td>5</td><td>Away BP</td><td>Away bullpen depth score (0–100; green &gt;55, red &lt;45)</td></tr>
+        <tr><td>6</td><td>Home BP</td><td>Home bullpen depth score (0–100)</td></tr>
+        <tr><td>7</td><td>Park</td><td>Home park run factor (green &gt;1.05, red &lt;0.95)</td></tr>
+        <tr><td>8</td><td>Park O/U</td><td>Park O/U adjustment in points (Coors excluded)</td></tr>
+        <tr><td>9</td><td>Away ML</td><td>Away moneyline odds (American)</td></tr>
+        <tr><td>10</td><td>Home ML</td><td>Home moneyline odds (American)</td></tr>
+        <tr><td>11</td><td>Away Spread</td><td>Away run line (±1.5) and price</td></tr>
+        <tr><td>12</td><td>Home Spread</td><td>Home run line and price</td></tr>
+        <tr><td>13</td><td>O/U</td><td>Over/Under total and price</td></tr>
+        <tr><td>14</td><td>Away Prob%</td><td>Model win probability for away side (vig-free + all adjustments)</td></tr>
+        <tr><td>15</td><td>Home Prob%</td><td>Model win probability for home side</td></tr>
+        <tr><td>16</td><td>Away EV%</td><td>Expected value for betting away ML ("—" if outside ±400 gate)</td></tr>
+        <tr><td>17</td><td>Home EV%</td><td>Expected value for betting home ML</td></tr>
+        <tr><td>18</td><td>Conf%</td><td>Model confidence (evNorm×0.5 + SharpScore×0.5)</td></tr>
+        <tr><td>19</td><td>Status</td><td>Tier: ELITE / STRONGEST / BEST BET / GOLD / PASS</td></tr>
+        <tr><td>20</td><td>Units</td><td>Recommended bet size after SafeUnits rules</td></tr>
+        <tr><td>21</td><td>CLV Δ</td><td>Closing line value delta (opening vs current spread)</td></tr>
+        <tr><td>22</td><td>SSS</td><td>Sharp Split Score (max bets/handle gap across spread + totals)</td></tr>
+        <tr><td>23</td><td>Away Inj</td><td>Away injury impact (negative = team is hurt)</td></tr>
+        <tr><td>24</td><td>Home Inj</td><td>Home injury impact</td></tr>
+        <tr><td>25</td><td>W O/U adj</td><td>Weather Over/Under adjustment</td></tr>
+        <tr><td>26</td><td>SP Gate</td><td>True if probable SP is Out/Doubtful (units zeroed)</td></tr>
+        <tr><td>27</td><td>Pick</td><td>Picked team name and odds</td></tr>
+        <tr><td>28</td><td>Prediction</td><td>Human-readable summary text</td></tr>
+      </table>
+    </div>
+
+    <h2>Output Files</h2>
+    <p>Every prediction cycle saves files to <code>output_data/</code> (gitignored).</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>File</th><th>Contents</th></tr>
+        <tr><td><code>live_predictions_YYYYMMDD.json</code></td><td>Qualified picks only (non-PASS). Served by <code>/api/predictions</code>.</td></tr>
+        <tr><td><code>mlb_model_YYYYMMDD.json</code></td><td>All games including PASS. Served by <code>/api/predictions/model</code>.</td></tr>
+        <tr><td><code>live_predictions_YYYYMMDD.csv</code></td><td>CSV version of qualified picks.</td></tr>
+        <tr><td><code>mlb_model_YYYYMMDD.csv</code></td><td>CSV version of full model. Can be exported directly from the Model page.</td></tr>
+      </table>
+    </div>
+
+    <h2>Frontend Files</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>File</th><th>Purpose</th></tr>
+        <tr><td><code>web/static/js/api.js</code></td><td><code>API.get()</code> / <code>API.post()</code> helpers</td></tr>
+        <tr><td><code>web/static/js/utils.js</code></td><td><code>fmtOdds</code>, <code>fmtPct</code>, <code>tierBadge</code>, countdown timer</td></tr>
+        <tr><td><code>web/static/js/model.js</code></td><td>MLB Model page — row rendering, sorting, CSV export</td></tr>
+        <tr><td><code>web/static/js/predictions.js</code></td><td>Live Picks page</td></tr>
+        <tr><td><code>web/static/css/main.css</code></td><td>Global styles</td></tr>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

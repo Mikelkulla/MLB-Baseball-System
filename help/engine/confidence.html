@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confidence &amp; Tiers — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Engine / Confidence</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="confidence.html" class="active"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Confidence &amp; Tier Assignment</h1>
+      <p>The V8.0 two-component confidence formula, SharpSplit, WPI, tier gating, SafeUnits rules, and safety caps.</p>
+    </div>
+
+    <h2>The Two Components</h2>
+    <p>Confidence is an equal-weighted blend of EV strength and sharp-money signal.</p>
+
+    <h3>Component 1 — EV Normalised (evNorm)</h3>
+    <div class="formula">
+      <div class="label">evNorm — EV scaled to 0–80</div>
+      evNorm = MIN(80, MAX(0, 50 + ev_pct × 2))<br>
+      <br>
+      <span class="cm"># ev_pct = None (outside gate) → evNorm = 50.0 (neutral)</span><br>
+      <span class="cm"># ev_pct = 0%   → evNorm = 50</span><br>
+      <span class="cm"># ev_pct = +5%  → evNorm = 60</span><br>
+      <span class="cm"># ev_pct = +15% → evNorm = 80 (capped)</span>
+    </div>
+
+    <h3>Component 2 — Sharp Score</h3>
+    <p>Two sub-values feed SharpScore:</p>
+
+    <div class="formula">
+      <div class="label">SharpSplit — signed handle vs bets gap</div>
+      sharp_split = ourHandle% − ourBets%<br>
+      <br>
+      <span class="cm"># Positive: sharp money backing our pick (handle > bets = fewer, larger bets)</span><br>
+      <span class="cm"># Negative: public money dominates (bets > handle = many small bets)</span><br>
+      <span class="cm"># ML bets% and handle% are EXCLUDED (only spread + totals per V8.0)</span>
+    </div>
+
+    <div class="formula">
+      <div class="label">WPI — Whale Pressure Index</div>
+      WPI = MIN(100, MAX(0, 50 + (ourHandle% − 50) × 1.5))<br>
+      <br>
+      <span class="cm"># ourHandle% = 50%  → WPI = 50 (neutral / no data)</span><br>
+      <span class="cm"># ourHandle% = 70%  → WPI = 80 (strong sharp alignment)</span><br>
+      <span class="cm"># ourHandle% = 30%  → WPI = 20 (sharp money against us)</span>
+    </div>
+
+    <div class="formula">
+      <div class="label">SharpScore</div>
+      SharpScore = MIN(100, MAX(0, 50 + sharp_split × 0.5 + (WPI − 50) × 0.4))
+    </div>
+
+    <h3>Final Confidence</h3>
+    <div class="formula">
+      <div class="label">V8.0 Confidence Formula (range: 25–95)</div>
+      Confidence = MIN(95, MAX(25, evNorm × 0.50 + SharpScore × 0.50))
+    </div>
+
+    <h2>Tier Assignment</h2>
+    <p>Confidence alone doesn't assign a tier — WPI must also meet a minimum threshold. A high-confidence pick backed by weak WPI gets downgraded.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Tier</th><th>Min Confidence</th><th>Min WPI</th><th>Units</th></tr>
+        <tr>
+          <td><span class="pill elite">ELITE</span></td>
+          <td>≥ 85%</td><td>≥ 75</td><td>3.0u</td>
+        </tr>
+        <tr>
+          <td><span class="pill strongest">STRONGEST</span></td>
+          <td>≥ 75%</td><td>≥ 65</td><td>2.5u</td>
+        </tr>
+        <tr>
+          <td><span class="pill bestbet">BEST BET</span></td>
+          <td>≥ 68%</td><td>≥ 55</td><td>1.75u</td>
+        </tr>
+        <tr>
+          <td><span class="pill gold">GOLD</span></td>
+          <td>≥ 55%</td><td>≥ 0</td><td>1.0u</td>
+        </tr>
+        <tr>
+          <td><span class="pill pass">PASS</span></td>
+          <td>&lt; 55%</td><td>any</td><td>0u</td>
+        </tr>
+      </table>
+    </div>
+    <p>If confidence qualifies for ELITE (≥85%) but WPI is only 60 (below the 75 threshold), the tier downgrades to STRONGEST, then checks WPI ≥ 65, and so on until a tier's WPI gate is met or PASS is assigned.</p>
+
+    <h2>Safety Layers</h2>
+    <p>Four safety mechanisms can reduce or zero out the recommended units <em>after</em> tier assignment. The tier label is preserved (so you can still see the model's view), but <code>safe_units</code> reflects the risk-adjusted position size.</p>
+
+    <h3>1. Steam-Against Cap (≥1.5 pts CLV adverse)</h3>
+    <div class="formula">
+      <div class="label">Steam-Against</div>
+      if clv_delta ≤ −1.5:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;confidence = MIN(74%, confidence)   <span class="cm"># cap at 74%</span>
+    </div>
+
+    <h3>2. Steam Auto-Pass (≥2.0 pts CLV adverse)</h3>
+    <div class="formula">
+      <div class="label">Steam Auto-Pass</div>
+      if clv_delta ≤ −2.0:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;safe_units = 0   <span class="cm"># keep tier, zero units</span>
+    </div>
+
+    <h3>3. LineFlip Cap</h3>
+    <div class="formula">
+      <div class="label">LineFlip</div>
+      if spread sign changed AND SharpScore &lt; 70:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;confidence = MIN(74%, confidence)   <span class="cm"># cap at 74%</span>
+    </div>
+
+    <h3>4. SP Gate</h3>
+    <div class="formula">
+      <div class="label">SP Gate</div>
+      if sp_gate_blocked = True:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;safe_units = 0   <span class="cm"># probable SP is Out/Doubtful</span>
+    </div>
+
+    <h2>SafeUnits Rules (applied in order)</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Priority</th><th>Condition</th><th>Result</th></tr>
+        <tr><td>1</td><td>SP gate blocked</td><td><code>safe_units = 0</code></td></tr>
+        <tr><td>2</td><td>WPI &lt; 50</td><td><code>safe_units = 0</code>, status = "ACTION ONLY"</td></tr>
+        <tr><td>3</td><td>Steam/LineFlip triggered</td><td><code>safe_units = min(base_units, 1.0u)</code></td></tr>
+        <tr><td>4</td><td>WPI &lt; 60 AND base units ≥ 2.5u</td><td><code>safe_units = 1.75u</code> (downgrade)</td></tr>
+        <tr><td>5</td><td>No rule fired</td><td><code>safe_units = base_units</code> (keep tier)</td></tr>
+      </table>
+    </div>
+
+    <div class="box info">
+      <div class="box-title">ACTION ONLY</div>
+      <p>When WPI &lt; 50 (sharp money against us), the pick is shown with 0 units but labelled "ACTION ONLY" rather than PASS. This means the model sees EV value in the pick but sharp-money alignment is too weak to recommend a bet size. It's a watch signal, not a qualified pick.</p>
+    </div>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># File: engine/confidence.py</span>
+<span class="kw">class</span> <span class="fn">ConfidenceEngine</span>:
+    ev_norm(ev_pct) → float
+    sharp_score(sharp_split, wpi) → float
+    score(ev_pct, sharp_split, wpi) → float         <span class="cm"># 25–95</span>
+    assign_tier(confidence_pct, wpi) → TierConfig
+    apply_safe_units(base_units, wpi, sp_blocked, safety_triggered) → (units, status)
+    evaluate(ev_pct, sharp_split, wpi, sp_gate_blocked, steam_cap) → (conf, tier, units)</code></pre>
+  </main>
+</div>
+</body>
+</html>

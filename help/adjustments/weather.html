@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Impact — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Adjustments / Weather</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="weather.html" class="active"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Weather Impact</h1>
+      <p>All O/U adjustments from wind direction, wind speed, temperature, precipitation, altitude, and dome status — all calibrated against large MLB game samples.</p>
+    </div>
+
+    <div class="box info">
+      <div class="box-title">Weather affects O/U, not moneyline</div>
+      <p>Weather adjustments are O/U line adjustments (positive = push toward Over, negative = push toward Under). They do not directly shift win probability. They inform the totals analysis on the MLB Model page.</p>
+    </div>
+
+    <h2>Dome Immunity</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Roof Type</th><th>Behavior</th><th>Examples</th></tr>
+        <tr><td>Fixed Dome</td><td>All weather adjustments skipped entirely</td><td>Tropicana Field, loanDepot park</td></tr>
+        <tr><td>Retractable</td><td>Roof assumed closed when rain OR temp ≤ 55°F</td><td>Rogers Centre, Minute Maid, Globe Life, Chase Field</td></tr>
+        <tr><td>Open Air</td><td>Full weather analysis applied</td><td>Fenway, Wrigley, Yankee Stadium</td></tr>
+      </table>
+    </div>
+
+    <h2>Wind — Direction &amp; Speed</h2>
+    <p>Wind direction is determined by comparing the meteorological wind direction (degrees) to the stadium's home-plate-to-CF orientation angle. Blowing "out" = from home plate toward CF = carries fly balls.</p>
+
+    <h3>Wind Speed Thresholds</h3>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Speed</th><th>Direction</th><th>Adjustment</th><th>Research basis</th></tr>
+        <tr><td>≥ 15 mph</td><td>Out</td><td><span style="color:var(--green)">+3.5 Over</span></td><td>Ball carries significantly; strong run inflation</td></tr>
+        <tr><td>≥ 15 mph</td><td>In</td><td><span style="color:var(--red)">+3.5 Under</span></td><td>Strong suppression; fly ball carry drastically reduced</td></tr>
+        <tr><td>≥ 15 mph</td><td>Cross</td><td><span style="color:var(--green)">+1.0 Over</span></td><td>High variance — slight Over lean from chaotic conditions</td></tr>
+        <tr><td>10–14 mph</td><td>Out</td><td><span style="color:var(--green)">+2.0 Over</span></td><td>Meaningful carry effect</td></tr>
+        <tr><td>10–14 mph</td><td>In</td><td><span style="color:var(--red)">+2.0 Under</span></td><td>Meaningful suppression</td></tr>
+        <tr><td>10–14 mph</td><td>Cross</td><td>No adjustment</td><td>Effect too small at moderate cross-wind</td></tr>
+        <tr><td>5–9 mph</td><td>In</td><td><span style="color:var(--red)">+0.75 Under</span></td><td>Action Network: Under 55.5% documented at 5+ mph In</td></tr>
+        <tr><td>5–9 mph</td><td>Out</td><td>No adjustment</td><td>Only ~52.9% Over — too small to model reliably</td></tr>
+        <tr><td>&lt; 5 mph</td><td>Any</td><td>No adjustment</td><td>Below significance threshold</td></tr>
+      </table>
+    </div>
+
+    <h2>Temperature</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Range</th><th>Adjustment</th><th>Explanation</th></tr>
+        <tr><td>≤ 40°F</td><td><span style="color:var(--green)">+1.0 Over</span></td><td>Counter-intuitive: OVER hits ~57%. Pitcher grip/command loss in extreme cold dominates bat speed reduction. Documented by multiple MLB sample studies.</td></tr>
+        <tr><td>41–55°F</td><td><span style="color:var(--red)">+0.75 Under</span></td><td>Cool range: bat speed reduction dominates. Reduced hard contact, fewer extra-base hits.</td></tr>
+        <tr><td>56–84°F</td><td>No adjustment</td><td>Neutral zone. No significant documented effect.</td></tr>
+        <tr><td>85–89°F</td><td><span style="color:var(--green)">+0.75 Over</span></td><td>Warm air, better ball carry. Modest Over lean.</td></tr>
+        <tr><td>≥ 90°F</td><td><span style="color:var(--green)">+1.25 Over</span></td><td>Very hot: 13–18% more runs vs cold conditions documented. Ball carries furthest.</td></tr>
+      </table>
+    </div>
+    <div class="box warn">
+      <div class="box-title">Extreme cold is an Over signal — this is correct</div>
+      <p>Many people assume cold = Under. Research shows the opposite at temperatures below 40°F: pitcher grip and command issues cause more walks, wild pitches, and hit batsmen — increasing scoring even as bat speed drops. The Under signal only applies in the <em>cool</em> range (41–55°F) where bat speed reduction dominates without the extreme cold grip effects.</p>
+    </div>
+
+    <h2>Precipitation</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Category</th><th>Adjustment</th><th>Research basis</th></tr>
+        <tr><td>Light rain</td><td><span style="color:var(--green)">+0.5 Over</span></td><td>Pitcher grip issues in wet conditions → 3.6% more runs on average (documented). More walks, wild pitches, hit batsmen.</td></tr>
+        <tr><td>Heavy rain</td><td><span style="color:var(--red)">+2.0 Under</span></td><td>Game pace disruption, slower fielding, extended innings → reduced run-scoring opportunities.</td></tr>
+        <tr><td>None</td><td>No adjustment</td><td></td></tr>
+      </table>
+    </div>
+    <div class="box warn">
+      <div class="box-title">Light rain is an Over signal — this is correct</div>
+      <p>Light rain does NOT suppress scoring. The pitcher struggles to grip the ball → more walks → more baserunners → more runs. Only heavy rain (game-disrupting) suppresses run totals.</p>
+    </div>
+
+    <h2>Altitude</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Altitude</th><th>Adjustment</th><th>Parks affected</th></tr>
+        <tr><td>≥ 4,000 ft</td><td><span style="color:var(--green)">+2.0 Over</span></td><td>Coors Field (5,197 ft) — park factor 125–128 vs baseline 100. ~2 extra runs per game.</td></tr>
+      </table>
+    </div>
+    <p>Note: The altitude adjustment for Coors is handled here in <code>weather_impact.py</code>. The park factor table (<code>ballpark_factors.py</code>) explicitly excludes Coors from its O/U adjustment to prevent double-counting.</p>
+
+    <h2>Adjustments are Additive</h2>
+    <p>Multiple conditions can fire in the same game. For example: a 90°F game at Coors with 12 mph wind blowing out would accumulate:</p>
+    <pre><code>very_hot_temp:    +1.25 Over
+altitude:         +2.00 Over
+wind_out_moderate: +2.00 Over
+───────────────────────────
+Total:            +5.25 Over</code></pre>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># engine/weather_impact.py</span>
+<span class="kw">class</span> <span class="fn">WeatherImpactEngine</span>:
+    calculate(home_team_key, temperature_f, wind_speed_mph,
+              wind_direction_deg, precipitation) → WeatherImpactResult
+
+<span class="cm"># mlb/stadiums.py</span>
+<span class="cm"># Stadium → city, dome type, altitude, orientation angle</span>
+get_wind_direction_impact(wind_deg, stadium) → "in" | "out" | "cross"</code></pre>
+  </main>
+</div>
+</body>
+</html>

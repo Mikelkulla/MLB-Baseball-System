@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Pipeline</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="index.html" class="active"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Pipeline</h1>
+      <p>How <code>MLBPipeline</code> orchestrates data collection, impact annotation, and prediction generation across three phases.</p>
+    </div>
+
+    <h2>Phase 1 — Data Collection</h2>
+    <p>All five data sources are fetched and stored in-memory by <code>pipeline.py</code>. Each fetch is independent and can be triggered individually on different schedules.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Source</th><th>Method</th><th>Stored as</th><th>File</th></tr>
+        <tr><td>The Odds API</td><td>HTTP GET</td><td><code>self._games: list[Game]</code></td><td><code>data/odds_client.py</code></td></tr>
+        <tr><td>Covers.com injuries</td><td>HTTP scrape</td><td><code>self._injuries: list[RawInjury]</code></td><td><code>data/injury_scraper.py</code></td></tr>
+        <tr><td>WeatherAPI.com</td><td>HTTP GET</td><td><code>self._weather: dict[str, WeatherData]</code></td><td><code>data/weather_client.py</code></td></tr>
+        <tr><td>DK Network splits</td><td>HTTP GET + parse</td><td><code>self._splits: list[SplitEntry]</code></td><td><code>data/draftking_scraper.py</code></td></tr>
+        <tr><td>MLB Stats API pitchers</td><td>HTTP GET</td><td><code>self._pitchers: dict[str, PitcherStats]</code></td><td><code>data/pitcher_client.py</code></td></tr>
+        <tr><td>MLB Stats API bullpens</td><td>HTTP GET</td><td><code>self._bullpens: dict[str, BullpenStats]</code></td><td><code>data/bullpen_client.py</code></td></tr>
+      </table>
+    </div>
+
+    <h2>Phase 1B — Apply Impacts</h2>
+    <p>The <code>_apply_impacts()</code> method annotates each <code>Game</code> object with computed values. This runs before every Phase 2 cycle so the engine always has fresh impact data.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Injuries</h4>
+          <p>Builds a lookup <code>team_key → [RawInjury]</code>. Computes position-weighted probability deltas for each team. Sets <code>game.away/home_injury_impact</code> and <code>game.sp_gate_blocked</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Weather</h4>
+          <p>Looks up weather by home team key. Skips domes automatically. Calls <code>WeatherImpactEngine.calculate()</code> and sets <code>game.weather_over_adj</code> / <code>game.weather_under_adj</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Pitchers</h4>
+          <p>Looks up <code>PitcherStats</code> by team key. Sets <code>game.away/home_pitcher_score</code> (0–100) and <code>game.away/home_pitcher_name</code>. Defaults to score=50, name="TBD" if no data.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Bullpen</h4>
+          <p>Looks up <code>BullpenStats</code> by team key. Sets <code>game.away/home_bullpen_score</code> (0–100). Defaults to 50 if team has fewer than 10 games played.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>Park Factors</h4>
+          <p>Calls <code>get_park_factor(game.home_team)</code> and <code>park_ou_adjustment_display(game.home_team)</code>. Sets <code>game.park_factor</code> and <code>game.park_ou_adj</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h4>Sharp Splits</h4>
+          <p>Matches DK split entries to games by <code>(away_key, home_key)</code> tuple. Sets <code>game.sharp_split_score</code>, <code>away/home_handle_pct</code>, and <code>away/home_bets_pct</code>. Defaults all to 50.0 if no match.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>Phase 2 — Prediction Engine</h2>
+    <p>Runs immediately after <code>_apply_impacts()</code>. Calls <code>PredictionEngine.evaluate(game)</code> for every game in <code>self._games</code>.</p>
+    <p>See the <a href="../engine/probability.html">Probability</a>, <a href="../engine/ev.html">EV</a>, and <a href="../engine/confidence.html">Confidence</a> pages for the full step-by-step logic.</p>
+    <p>Output: two lists — <strong>qualified picks</strong> (non-PASS, saved to <code>live_predictions_YYYYMMDD.json</code>) and <strong>all predictions</strong> (every game including PASS, saved to <code>mlb_model_YYYYMMDD.json</code>).</p>
+
+    <h2>Scheduler — Background Jobs</h2>
+    <p><code>scheduler/runner.py</code> uses APScheduler to run refresh jobs at different intervals. The scheduler starts automatically with <code>uvicorn app:app</code>.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Job ID</th><th>Default interval</th><th>What it does</th></tr>
+        <tr><td class="mono">full_refresh</td><td>360 min</td><td>All phases in sequence</td></tr>
+        <tr><td class="mono">odds</td><td>30 min</td><td>Odds API only</td></tr>
+        <tr><td class="mono">injuries</td><td>120 min</td><td>Covers.com scrape</td></tr>
+        <tr><td class="mono">weather</td><td>240 min</td><td>WeatherAPI fetch</td></tr>
+        <tr><td class="mono">dk_splits</td><td>180 min</td><td>DK Network scrape</td></tr>
+        <tr><td class="mono">pitchers</td><td>60 min</td><td>MLB Stats API probable starters</td></tr>
+        <tr><td class="mono">bullpens</td><td>120 min</td><td>MLB Stats API team pitching</td></tr>
+        <tr><td class="mono">live_predictions</td><td>10 min</td><td>Re-run engine with cached data</td></tr>
+      </table>
+    </div>
+
+    <h3>Scheduler Presets</h3>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Preset</th><th>When to use</th><th>Bullpen interval</th></tr>
+        <tr><td><code>gameday</code></td><td>Active game day — most frequent refreshes</td><td>60 min</td></tr>
+        <tr><td><code>active</code></td><td>Default normal operation</td><td>90 min</td></tr>
+        <tr><td><code>low_activity</code></td><td>Off-day / pre-season</td><td>240 min</td></tr>
+      </table>
+    </div>
+
+    <h2>Manual Refresh via API</h2>
+    <pre><code><span class="cm"># Full refresh (all phases)</span>
+POST /api/predictions/refresh
+
+<span class="cm"># Odds only</span>
+POST /api/predictions/refresh/odds
+
+<span class="cm"># Pitchers only</span>
+POST /api/predictions/refresh/pitchers</code></pre>
+
+    <div class="box info">
+      <div class="box-title">Refresh order matters</div>
+      <p>The engine always re-runs <code>_apply_impacts()</code> before generating predictions, so new data from any individual refresh job is automatically picked up on the next <code>live_predictions</code> cycle (every 10 min).</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>

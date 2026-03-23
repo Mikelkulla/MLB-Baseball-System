@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Sources — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Data Sources</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="index.html" class="active"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Data Sources</h1>
+      <p>All five external feeds — what they provide, how they're fetched, and where the API keys live.</p>
+    </div>
+
+    <h2>The Odds API</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>File</td><td><code>data/odds_client.py</code></td></tr>
+      <tr><td>API key setting</td><td><code>config/settings.py → ODDS_API_KEY</code></td></tr>
+      <tr><td>Refresh interval</td><td>30 min (odds job) + 360 min (full refresh)</td></tr>
+      <tr><td>Markets fetched</td><td><code>h2h</code> (moneyline), <code>spreads</code>, <code>totals</code></td></tr>
+    </table></div>
+    <p>Returns a <code>Game</code> object for every scheduled MLB game today, with:</p>
+    <ul>
+      <li>Away/Home moneyline odds</li>
+      <li>Away/Home run line (always ±1.5) and price</li>
+      <li>O/U total line and price</li>
+      <li>Opening spread stored in <code>GameOdds.away_spread_open / home_spread_open</code> (used for CLV calculation)</li>
+      <li>Multi-book consensus probability and best-price line across all available bookmakers</li>
+    </ul>
+    <pre><code><span class="cm"># Base URL</span>
+https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/
+?apiKey=...&regions=us&markets=h2h,spreads,totals&oddsFormat=american</code></pre>
+
+    <h2>DraftKings Network — Betting Splits</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>File</td><td><code>data/draftking_scraper.py</code></td></tr>
+      <tr><td>Method</td><td>Plain HTTP GET — <strong>no Playwright needed</strong></td></tr>
+      <tr><td>Refresh interval</td><td>180 min</td></tr>
+      <tr><td>Sport ID</td><td><code>84240</code> (MLB)</td></tr>
+    </table></div>
+    <p>Returns handle% and bets% for every available market (ML, spread, totals) per game. These feed SharpSplit and WPI calculations.</p>
+    <pre><code><span class="cm"># URL template</span>
+https://dknetwork.draftkings.com/draftkings-sportsbook-betting-splits/
+?tb_eg=84240&tb_edate=n7days&tb_emt=0
+
+<span class="cm"># HTML parsing: split by &lt;div class="tb-se"&gt; per game</span>
+<span class="cm"># Handle% is 3rd &lt;div&gt;, Bets% is 4th &lt;div&gt; in each option block</span></code></pre>
+    <div class="box warn">
+      <div class="box-title">Old sportsbook URL gives 403</div>
+      <p>The <code>sportsbook.draftkings.com</code> URL returns 403 errors. Use only the DK Network URL above. The Network page is server-side rendered so plain <code>requests</code> + BeautifulSoup is sufficient.</p>
+    </div>
+    <h3>SharpSplit (SSS)</h3>
+    <p>SSS uses the <em>maximum gap</em> between bets% and handle% across spread and totals markets. <strong>Moneyline is excluded per V8.0 spec.</strong></p>
+    <pre><code>SSS = max(
+    |away_spread_bets − away_spread_handle|,
+    |home_spread_bets − home_spread_handle|,
+    |over_bets − over_handle|,
+    |under_bets − under_handle|,
+)</code></pre>
+
+    <h2>WeatherAPI.com</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>File</td><td><code>data/weather_client.py</code></td></tr>
+      <tr><td>API key setting</td><td><code>config/settings.py → WEATHER_API_KEY</code></td></tr>
+      <tr><td>Refresh interval</td><td>240 min</td></tr>
+    </table></div>
+    <p>Fetches current weather for each stadium city. Dome stadiums skip weather adjustments automatically. Returns temperature (°F), wind speed (mph), wind direction (degrees from N), and precipitation category.</p>
+    <pre><code><span class="cm"># Endpoint</span>
+http://api.weatherapi.com/v1/current.json?key=...&q={city}&aqi=no
+
+<span class="cm"># Dome skip — checked in pipeline._apply_impacts():</span>
+<span class="kw">if</span> weather.is_dome: skip weather adjustment entirely</code></pre>
+
+    <h2>Covers.com — Injury Scraper</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>File</td><td><code>data/injury_scraper.py</code></td></tr>
+      <tr><td>Method</td><td>HTTP scrape (BeautifulSoup)</td></tr>
+      <tr><td>Refresh interval</td><td>120 min</td></tr>
+      <tr><td>URL</td><td><code>https://www.covers.com/sport/baseball/mlb/injuries</code></td></tr>
+    </table></div>
+    <p>Returns <code>RawInjury</code> objects: player name, team, position, and status. Position is mapped to the weight table in <code>mlb_config.py</code>.</p>
+    <p><strong>SP Gate trigger:</strong> if a player's position = SP and status is Out/Doubtful, sets <code>sp_gate_blocked = True</code> for that team's game.</p>
+
+    <h2>MLB Stats API — Pitcher &amp; Bullpen Data</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Pitcher file</td><td><code>data/pitcher_client.py</code></td></tr>
+      <tr><td>Bullpen file</td><td><code>data/bullpen_client.py</code></td></tr>
+      <tr><td>Auth required</td><td><strong>None — free public API</strong></td></tr>
+      <tr><td>Pitcher refresh</td><td>60 min</td></tr>
+      <tr><td>Bullpen refresh</td><td>120 min</td></tr>
+    </table></div>
+    <pre><code><span class="cm"># Probable starters (pitcher_client.py)</span>
+GET https://statsapi.mlb.com/api/v1/schedule/games
+    ?sportId=1&date=YYYY-MM-DD&hydrate=probablePitcher
+
+<span class="cm"># Season stats per team (bullpen_client.py)</span>
+GET https://statsapi.mlb.com/api/v1/teams/{team_id}/stats
+    ?stats=season&group=pitching&season=YYYY
+
+<span class="cm"># Team IDs extracted from schedule endpoint</span>
+GET https://statsapi.mlb.com/api/v1/schedule/games?sportId=1&date={target}</code></pre>
+
+    <div class="box warn">
+      <div class="box-title">Spring training stats are empty</div>
+      <p>The MLB Stats API returns no 2026 season stats until regular season starts in April. During spring training, all pitcher scores default to 50 (TBD) and all bullpen scores default to 50 (fewer than 10 games). No probability adjustments fire. This is correct and expected.</p>
+    </div>
+
+    <h2>API Keys Summary</h2>
+    <p>All keys are configured in <code>config/settings.py</code>.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Source</th><th>Key name</th><th>Free tier?</th></tr>
+      <tr><td>The Odds API</td><td><code>ODDS_API_KEY</code></td><td>Yes — limited requests/month</td></tr>
+      <tr><td>WeatherAPI.com</td><td><code>WEATHER_API_KEY</code></td><td>Yes — 1M calls/month free</td></tr>
+      <tr><td>DraftKings Network</td><td>None — public page</td><td>Always free</td></tr>
+      <tr><td>Covers.com</td><td>None — public page</td><td>Always free</td></tr>
+      <tr><td>MLB Stats API</td><td>None — open API</td><td>Always free</td></tr>
+    </table></div>
+  </main>
+</div>
+</body>
+</html>

@@ -16,7 +16,7 @@
       <div class="logo-icon">⚾</div>
       <div>
         <div class="logo-text">MLB System</div>
-        <div class="logo-sub">v1.0 · Baseball</div>
+        <div class="logo-sub">v1.0.0 · Baseball</div>
       </div>
     </div>
 
@@ -60,6 +60,28 @@
       <div class="topbar-actions">
         <span class="refresh-badge" id="last-refresh-time"></span>
         <button class="btn btn-secondary btn-sm" id="btn-run-now" onclick="runNow()">▶ Run Now</button>
+
+        <!-- Help dropdown -->
+        <div class="help-btn-wrap" id="help-btn-wrap">
+          <button class="help-btn" id="help-btn" onclick="toggleHelpMenu(event)" title="Help">?</button>
+          <div class="help-menu" id="help-menu" hidden>
+            <a href="/docs" target="_blank" class="help-menu-item">
+              <span class="help-menu-icon">⬡</span>
+              <span>
+                <strong>API Docs</strong>
+                <small>Interactive endpoint explorer</small>
+              </span>
+            </a>
+            <div class="help-menu-divider"></div>
+            <a href="/help/index.html" target="_blank" class="help-menu-item">
+              <span class="help-menu-icon">◈</span>
+              <span>
+                <strong>System Documentation</strong>
+                <small>Formulas, adjustments, data sources</small>
+              </span>
+            </a>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -114,5 +136,22 @@
   }
 </script>
 {% block scripts %}{% endblock %}
+<script>
+  function toggleHelpMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('help-menu');
+    const btn  = document.getElementById('help-btn');
+    const open = !menu.hidden;
+    menu.hidden = open;
+    btn.classList.toggle('active', !open);
+  }
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('help-btn-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('help-menu').hidden = true;
+      document.getElementById('help-btn').classList.remove('active');
+    }
+  });
+</script>
 </body>
 </html>

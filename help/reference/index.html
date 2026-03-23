@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formula Reference — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Formula Reference</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="../adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="../adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="../adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="../adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="../adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="index.html" class="active"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Formula Reference</h1>
+      <p>Every formula in the system — one page, quick lookup.</p>
+    </div>
+
+    <h2>1. Vig Removal</h2>
+    <div class="formula">
+      raw_prob (odds ≥ 0) = 100 / (odds + 100)<br>
+      raw_prob (odds &lt; 0) = |odds| / (|odds| + 100)<br>
+      total = raw_away + raw_home<br>
+      true_away = raw_away / total × 100<br>
+      true_home = raw_home / total × 100
+    </div>
+
+    <h2>2. Injury Probability Adjustment</h2>
+    <div class="formula">
+      net = home_injury_delta − away_injury_delta<br>
+      new_away = away_prob + net / 2<br>
+      new_home = home_prob − net / 2<br>
+      → re-normalise to sum = 100
+    </div>
+    <div class="formula">
+      <div class="label">Per-player delta</div>
+      delta = position_weight × status_multiplier<br>
+      team_impact = Σ(delta × diminishing_factor)  capped at 12.0
+    </div>
+
+    <h2>3. Pitcher Probability Adjustment</h2>
+    <div class="formula">
+      edge = away_pitcher_score − home_pitcher_score<br>
+      prob_shift = (edge / 50) × 5.0 × park_scaling   <span class="cm"># max ±10pp</span><br>
+      new_away = away_prob + prob_shift<br>
+      new_home = home_prob − prob_shift<br>
+      → re-normalise to sum = 100
+    </div>
+
+    <h2>4. Bullpen Probability Adjustment</h2>
+    <div class="formula">
+      edge = away_bullpen_score − home_bullpen_score<br>
+      prob_shift = (edge / 50) × 2.0 × park_scaling   <span class="cm"># max ±4pp</span><br>
+      new_away = away_prob + prob_shift<br>
+      → re-normalise to sum = 100
+    </div>
+
+    <h2>5. Park Pitcher Scaling</h2>
+    <div class="formula">
+      park_scaling = CLAMP(2.0 − park_factor, 0.60, 1.25)
+    </div>
+
+    <h2>6. EV Calculation</h2>
+    <div class="formula">
+      decimal (odds ≥ 0) = 1 + odds / 100<br>
+      decimal (odds &lt; 0) = 1 + 100 / |odds|<br>
+      EV% = ((prob/100 × (decimal − 1)) − ((1 − prob/100) × 1)) × 100<br>
+      <span class="cm"># Returns None if |odds| &gt; 400</span>
+    </div>
+
+    <h2>7. Pick Selection</h2>
+    <div class="formula">
+      pick = argmax(away_ev, home_ev)<br>
+      if best_ev &lt; 0: → PASS
+    </div>
+
+    <h2>8. SharpSplit &amp; WPI</h2>
+    <div class="formula">
+      sharp_split = ourHandle% − ourBets%   <span class="cm"># ML excluded; spread + totals only</span><br>
+      WPI = CLAMP(50 + (ourHandle% − 50) × 1.5, 0, 100)
+    </div>
+
+    <h2>9. Confidence Formula</h2>
+    <div class="formula">
+      evNorm     = CLAMP(50 + ev_pct × 2, 0, 80)<br>
+      SharpScore = CLAMP(50 + sharp_split × 0.5 + (WPI − 50) × 0.4, 0, 100)<br>
+      Confidence = CLAMP(evNorm × 0.50 + SharpScore × 0.50, 25, 95)
+    </div>
+
+    <h2>10. Tier Assignment</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Tier</th><th>Min Confidence</th><th>Min WPI</th><th>Units</th></tr>
+        <tr><td><span class="pill elite">ELITE</span></td><td>≥ 85%</td><td>≥ 75</td><td>3.0u</td></tr>
+        <tr><td><span class="pill strongest">STRONGEST</span></td><td>≥ 75%</td><td>≥ 65</td><td>2.5u</td></tr>
+        <tr><td><span class="pill bestbet">BEST BET</span></td><td>≥ 68%</td><td>≥ 55</td><td>1.75u</td></tr>
+        <tr><td><span class="pill gold">GOLD</span></td><td>≥ 55%</td><td>≥ 0</td><td>1.0u</td></tr>
+        <tr><td><span class="pill pass">PASS</span></td><td>&lt; 55%</td><td>any</td><td>0u</td></tr>
+      </table>
+    </div>
+
+    <h2>11. SafeUnits Rules</h2>
+    <div class="formula">
+      1. SP gate blocked                 → safe_units = 0<br>
+      2. WPI &lt; 50                        → safe_units = 0, "ACTION ONLY"<br>
+      3. Steam/LineFlip triggered        → safe_units = min(units, 1.0u)<br>
+      4. WPI &lt; 60 AND units ≥ 2.5u      → safe_units = 1.75u<br>
+      5. No rule                         → safe_units = tier_units
+    </div>
+
+    <h2>12. Safety Caps</h2>
+    <div class="formula">
+      Steam-against (CLV ≤ −1.5 pts):   confidence = min(74%, confidence)<br>
+      Steam auto-pass (CLV ≤ −2.0 pts): safe_units = 0<br>
+      LineFlip + SharpScore &lt; 70:       confidence = min(74%, confidence)
+    </div>
+
+    <h2>13. Pitcher Score (0–100)</h2>
+    <div class="formula">
+      FIP = ((13×HR) + (3×(BB+HBP)) − (2×K)) / IP + 3.17<br>
+      <br>
+      fip_score  = (8.40 − FIP)  / 8.40 × 100   <span class="cm"># league_avg=4.20; 2×avg=8.40</span><br>
+      k9_score   = K/9  / 17.60 × 100            <span class="cm"># league_avg=8.80; 2×avg=17.60</span><br>
+      bb9_score  = (6.20 − BB/9) / 6.20 × 100   <span class="cm"># league_avg=3.10; 2×avg=6.20</span><br>
+      hr9_score  = (2.30 − HR/9) / 2.30 × 100   <span class="cm"># league_avg=1.15; 2×avg=2.30</span><br>
+      <br>
+      score = fip_score×0.40 + k9_score×0.25 + bb9_score×0.20 + hr9_score×0.10 + recent_era_score×0.05
+    </div>
+
+    <h2>14. Bullpen Score (0–100)</h2>
+    <div class="formula">
+      score = fip_score×0.45 + k9_score×0.30 + bb9_score×0.25<br>
+      <span class="cm"># Same normalisation as pitcher score; games &lt; 10 → return 50.0</span>
+    </div>
+
+    <h2>15. Park O/U Adjustment</h2>
+    <div class="formula">
+      park_ou_adj = (park_factor − 1.0) × 5.3<br>
+      <span class="cm"># Colorado Rockies excluded (altitude handled by weather engine)</span>
+    </div>
+
+    <h2>16. Weather Adjustments (O/U points)</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Condition</th><th>Over adj</th><th>Under adj</th></tr>
+        <tr><td>Wind out ≥ 15 mph</td><td>+3.5</td><td>—</td></tr>
+        <tr><td>Wind in ≥ 15 mph</td><td>—</td><td>+3.5</td></tr>
+        <tr><td>Cross wind ≥ 15 mph</td><td>+1.0</td><td>—</td></tr>
+        <tr><td>Wind out 10–14 mph</td><td>+2.0</td><td>—</td></tr>
+        <tr><td>Wind in 10–14 mph</td><td>—</td><td>+2.0</td></tr>
+        <tr><td>Wind in 5–9 mph</td><td>—</td><td>+0.75</td></tr>
+        <tr><td>Temp ≤ 40°F</td><td>+1.0</td><td>—</td></tr>
+        <tr><td>Temp 41–55°F</td><td>—</td><td>+0.75</td></tr>
+        <tr><td>Temp 85–89°F</td><td>+0.75</td><td>—</td></tr>
+        <tr><td>Temp ≥ 90°F</td><td>+1.25</td><td>—</td></tr>
+        <tr><td>Light rain</td><td>+0.5</td><td>—</td></tr>
+        <tr><td>Heavy rain</td><td>—</td><td>+2.0</td></tr>
+        <tr><td>Altitude ≥ 4,000 ft</td><td>+2.0</td><td>—</td></tr>
+      </table>
+    </div>
+
+    <h2>17. Injury Status Multipliers</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Status</th><th>Multiplier</th></tr>
+        <tr><td>Out / Out for season</td><td>1.00</td></tr>
+        <tr><td>Doubtful</td><td>0.85</td></tr>
+        <tr><td>Questionable</td><td>0.40</td></tr>
+        <tr><td>Day-to-day</td><td>0.30</td></tr>
+        <tr><td>Probable</td><td>0.10</td></tr>
+        <tr><td>Healthy</td><td>0.00</td></tr>
+      </table>
+    </div>
+
+    <h2>18. SSS (Sharp Split Score)</h2>
+    <div class="formula">
+      SSS = max(|away_spread_bets − away_spread_handle|,<br>
+               &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|home_spread_bets − home_spread_handle|,<br>
+               &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|over_bets − over_handle|,<br>
+               &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|under_bets − under_handle|)<br>
+      <span class="cm"># Moneyline EXCLUDED per V8.0</span>
+    </div>
+  </main>
+</div>
+</body>
+</html>

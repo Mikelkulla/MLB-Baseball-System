@@ -56,6 +56,7 @@ app = FastAPI(
 
 # Static files + templates
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/help", StaticFiles(directory=str(BASE_DIR / "help"), html=True), name="help")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # API routers

@@ -524,3 +524,81 @@ td.mono { font-family: var(--font-mono); font-size: 12px; }
   .sidebar.open { left: 0; }
   .cards { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Help button & dropdown ──────────────────────────────────── */
+.help-btn-wrap {
+  position: relative;
+}
+.help-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+.help-btn:hover,
+.help-btn.active {
+  background: rgba(88,166,255,0.12);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+.help-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 999;
+  overflow: hidden;
+  padding: 6px;
+}
+.help-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: background 0.12s;
+}
+.help-menu-item:hover {
+  background: var(--bg-hover);
+}
+.help-menu-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--accent-blue);
+}
+.help-menu-item strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.help-menu-item small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.help-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}

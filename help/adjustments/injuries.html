@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Injury Impact — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Adjustments / Injuries</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="injuries.html" class="active"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Injury Impact</h1>
+      <p>Position weights calibrated to FanGraphs WAR analytics, injury status multipliers, diminishing returns, and the SP gate.</p>
+    </div>
+
+    <h2>How the Delta is Calculated</h2>
+    <div class="formula">
+      <div class="label">Per-Player Delta</div>
+      delta = position_weight × status_multiplier
+    </div>
+    <div class="formula">
+      <div class="label">Team Impact (with diminishing returns)</div>
+      For each injured player (sorted by severity):<br>
+      &nbsp;&nbsp;factor = DIMINISHING_FACTORS[count_at_same_position]<br>
+      &nbsp;&nbsp;contribution = delta × factor<br>
+      &nbsp;&nbsp;total += contribution<br>
+      <br>
+      team_impact = MIN(total, 12.0)   <span class="cm"># max 12pp per team</span><br>
+      <span class="cm"># Result stored as negative (e.g. −4.5 means team is hurt)</span>
+    </div>
+
+    <h3>Diminishing Returns Factors</h3>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Nth injury at same position</th><th>Factor</th><th>Example</th></tr>
+        <tr><td>1st</td><td>1.00 (full)</td><td>Primary SS is out</td></tr>
+        <tr><td>2nd</td><td>0.50</td><td>Backup SS is also out</td></tr>
+        <tr><td>3rd</td><td>0.25</td><td>Emergency SS also injured</td></tr>
+        <tr><td>4th+</td><td>0.125</td><td>Increasingly negligible</td></tr>
+      </table>
+    </div>
+
+    <h2>Position Weights</h2>
+    <p>Calibrated against FanGraphs positional adjustments (runs per 162 games) and MLB WAR research. Higher weight = more win probability impact when injured.</p>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Position</th><th>Weight</th><th>Rationale</th></tr>
+        <tr><td>SP (Starting Pitcher)</td><td><strong>8.0</strong></td><td>Game-defining. Market shows 10–15pp shift for ace scratch. 8.0 is average-case (the SP gate handles extreme Out/Doubtful separately).</td></tr>
+        <tr><td>C (Catcher)</td><td><strong>3.0</strong></td><td>Highest positional adjustment (+12.5 runs/162g). Framing value (30–50 runs/season for elite framers) is NOT captured in FIP-based pitcher scoring.</td></tr>
+        <tr><td>SS (Shortstop)</td><td><strong>2.0</strong></td><td>Second hardest infield position (+7.5 runs/162g). Replacement SS scarcity is well-documented.</td></tr>
+        <tr><td>CP (Closer)</td><td><strong>2.0</strong></td><td>High-leverage index ~1.8. Chaining effect limits net loss to 1.0–1.5 WAR (setup man shifts up).</td></tr>
+        <tr><td>RP (Relief Pitcher)</td><td><strong>1.5</strong></td><td>8th-inning / high-leverage role. LI 1.2–1.5.</td></tr>
+        <tr><td>CF (Center Field)</td><td><strong>1.5</strong></td><td>+2.5 run positional adjustment. Harder than corner OF — defensive scarcity matters.</td></tr>
+        <tr><td>3B (Third Base)</td><td><strong>1.2</strong></td><td>+2.5 run positional adj (same tier as 2B analytically).</td></tr>
+        <tr><td>MR (Middle Reliever)</td><td><strong>1.2</strong></td><td>High-leverage bridge to closer.</td></tr>
+        <tr><td>2B (Second Base)</td><td><strong>1.0</strong></td><td>+2.5 run positional adj.</td></tr>
+        <tr><td>1B (First Base)</td><td><strong>0.8</strong></td><td>−12.5 run adj. Easiest infield position to fill.</td></tr>
+        <tr><td>LF / RF (Corner OF)</td><td><strong>0.8</strong></td><td>−7.5 run adj. Corner OF easier to replace.</td></tr>
+        <tr><td>DH (Designated Hitter)</td><td><strong>0.6</strong></td><td>−17.5 run adj. No defensive scarcity. Backup hitter always available.</td></tr>
+      </table>
+    </div>
+
+    <h2>Status Multipliers</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Status</th><th>Multiplier</th><th>Meaning</th></tr>
+        <tr><td>Out / Out for season</td><td><strong>1.00</strong></td><td>Definitely not playing</td></tr>
+        <tr><td>Doubtful</td><td><strong>0.85</strong></td><td>Very likely out</td></tr>
+        <tr><td>Questionable</td><td><strong>0.40</strong></td><td>50/50 — might play</td></tr>
+        <tr><td>Day-to-day</td><td><strong>0.30</strong></td><td>Likely playing but limited</td></tr>
+        <tr><td>Probable</td><td><strong>0.10</strong></td><td>Expected to play, minor concern</td></tr>
+        <tr><td>Healthy</td><td><strong>0.00</strong></td><td>No impact</td></tr>
+      </table>
+    </div>
+
+    <h2>SP Gate</h2>
+    <p>The SP Gate is a separate, hard block — it doesn't just shift probability, it zeroes units entirely when triggered.</p>
+    <div class="formula">
+      <div class="label">SP Gate Trigger</div>
+      if probable_starter.status in {"out", "out for season", "doubtful"}:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;sp_gate_blocked = True → safe_units = 0
+    </div>
+    <p>Rationale: an ace scratched late (Out/Doubtful) causes the market to move 10–15pp in some cases. Any pre-game analysis based on the original starter is invalidated. The model cannot reliably re-price the game without knowing the replacement pitcher.</p>
+    <div class="box danger">
+      <div class="box-title">SP Gate does not change the tier</div>
+      <p>The tier label (ELITE, STRONGEST, etc.) is preserved, but <code>safe_units = 0</code>. The model still shows the underlying analysis — it just won't recommend a bet. You'll see the pick in the MLB Model table but it won't appear in Live Picks.</p>
+    </div>
+
+    <h2>Data Source</h2>
+    <p>Injuries scraped from Covers.com MLB injury page. Refreshed every 120 minutes.</p>
+    <pre><code>URL: https://www.covers.com/sport/baseball/mlb/injuries
+Parses: player name, team, position, status (Out/Doubtful/Questionable)</code></pre>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># engine/injury_impact.py</span>
+<span class="kw">class</span> <span class="fn">InjuryImpactEngine</span>:
+    calculate(away_injured, home_injured, away_sp, home_sp) → InjuryImpactResult
+
+<span class="cm"># config/mlb_config.py</span>
+MLB_POSITION_WEIGHTS: Dict[str, float]
+INJURY_STATUS_MULTIPLIERS: Dict[str, float]
+SP_GATE_STATUSES: frozenset</code></pre>
+  </main>
+</div>
+</body>
+</html>

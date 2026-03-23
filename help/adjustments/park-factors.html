@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Park Factors — MLB Betting System Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="top-bar">
+  <a class="logo" href="../index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <span class="breadcrumb"><a href="../index.html">Docs</a> / Adjustments / Park Factors</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="../index.html"><span class="icon">🏠</span> Home</a>
+    <a href="../overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="../pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+    <div class="nav-section">Engine</div>
+    <a href="../engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="../engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="../engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+    <div class="nav-section">Adjustments</div>
+    <a href="pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="park-factors.html" class="active"><span class="icon">🏟️</span> Park Factors</a>
+    <div class="nav-section">Data Sources</div>
+    <a href="../data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+    <div class="nav-section">Interface</div>
+    <a href="../web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+    <div class="nav-section">Reference</div>
+    <a href="../reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <h1>Park Factors</h1>
+      <p>30-park run factor table, how park factor scales pitcher/bullpen probability adjustments, and the park O/U adjustment.</p>
+    </div>
+
+    <h2>What Park Factor Does</h2>
+    <p>Park factors have two roles in the system:</p>
+    <ol>
+      <li><strong>Scale pitching edges</strong> — pitcher and bullpen probability adjustments are multiplied by a park scaling factor. In hitter parks, great pitching matters less (the park inflates scoring regardless). In pitcher parks, the edge is amplified.</li>
+      <li><strong>O/U adjustment</strong> — independent of weather, the park's run environment adds or subtracts from the Over/Under signal on the MLB Model page.</li>
+    </ol>
+
+    <h2>Park Pitcher Scaling Formula</h2>
+    <div class="formula">
+      <div class="label">Park Scaling Multiplier</div>
+      scaling = 2.0 − park_factor<br>
+      scaling = CLAMP(scaling, 0.60, 1.25)<br>
+      <br>
+      <span class="cm"># Coors  (1.38) → 2.0 − 1.38 = 0.62  → max ±6.2pp pitcher shift</span><br>
+      <span class="cm"># Fenway (1.10) → 2.0 − 1.10 = 0.90  → max ±9.0pp</span><br>
+      <span class="cm"># Neutral(1.00) → 2.0 − 1.00 = 1.00  → max ±10.0pp (unchanged)</span><br>
+      <span class="cm"># Oracle (0.91) → 2.0 − 0.91 = 1.09  → max ±10.9pp</span><br>
+      <span class="cm"># Petco  (0.88) → 2.0 − 0.88 = 1.12  → max ±11.2pp</span>
+    </div>
+
+    <h2>Park O/U Adjustment Formula</h2>
+    <div class="formula">
+      <div class="label">Park O/U Adjustment</div>
+      SENSITIVITY = 5.3<br>
+      park_ou_adj = (park_factor − 1.0) × SENSITIVITY<br>
+      <br>
+      <span class="cm"># Coors  (1.38) → excluded (altitude already in weather engine)</span><br>
+      <span class="cm"># Fenway (1.10) → (1.10 − 1.0) × 5.3 = +0.53 Over</span><br>
+      <span class="cm"># Petco  (0.88) → (0.88 − 1.0) × 5.3 = −0.64 Under</span><br>
+      <span class="cm"># Oracle (0.91) → (0.91 − 1.0) × 5.3 = −0.48 Under</span>
+    </div>
+    <div class="box warn">
+      <div class="box-title">Coors Field is excluded from park O/U adjustment</div>
+      <p>The <code>weather_impact.py</code> altitude adjustment already applies +2.0 Over for Coors Field (altitude ≥ 4,000 ft). The park O/U formula would also return +2.01 Over for Coors. To prevent double-counting, <code>park_ou_adjustment_display()</code> returns 0.0 for <code>colorado_rockies</code>.</p>
+    </div>
+
+    <h2>Complete Park Factor Table</h2>
+    <p>Multi-year composite (2021–2024 average). 1.00 = league average.</p>
+    <div class="table-wrap">
+      <table>
+        <tr>
+          <th>Team</th><th>Stadium</th><th>Factor</th><th>O/U adj</th><th>Character</th>
+        </tr>
+        <!-- AL East -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">AL East</td></tr>
+        <tr><td>Baltimore Orioles</td><td>Oriole Park</td><td class="mono">1.02</td><td class="mono">+0.11</td><td>Slight hitter-friendly</td></tr>
+        <tr><td>Boston Red Sox</td><td>Fenway Park</td><td class="mono" style="color:var(--green)">1.10</td><td class="mono" style="color:var(--green)">+0.53</td><td>Green Monster boosts doubles/HR</td></tr>
+        <tr><td>New York Yankees</td><td>Yankee Stadium</td><td class="mono">1.04</td><td class="mono">+0.21</td><td>Short porch in right</td></tr>
+        <tr><td>Tampa Bay Rays</td><td>Tropicana Field</td><td class="mono" style="color:var(--red)">0.94</td><td class="mono" style="color:var(--red)">−0.32</td><td>Dome; artificial turf</td></tr>
+        <tr><td>Toronto Blue Jays</td><td>Rogers Centre</td><td class="mono">1.01</td><td class="mono">+0.05</td><td>Retractable dome</td></tr>
+        <!-- AL Central -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">AL Central</td></tr>
+        <tr><td>Chicago White Sox</td><td>Guaranteed Rate Field</td><td class="mono">1.03</td><td class="mono">+0.16</td><td>Slight hitter-friendly</td></tr>
+        <tr><td>Cleveland Guardians</td><td>Progressive Field</td><td class="mono" style="color:var(--red)">0.97</td><td class="mono" style="color:var(--red)">−0.16</td><td>Slight pitcher-friendly</td></tr>
+        <tr><td>Detroit Tigers</td><td>Comerica Park</td><td class="mono" style="color:var(--red)">0.95</td><td class="mono" style="color:var(--red)">−0.27</td><td>Deep outfield suppresses HR</td></tr>
+        <tr><td>Kansas City Royals</td><td>Kauffman Stadium</td><td class="mono">0.99</td><td class="mono">−0.05</td><td>Near neutral</td></tr>
+        <tr><td>Minnesota Twins</td><td>Target Field</td><td class="mono">1.01</td><td class="mono">+0.05</td><td>Near neutral</td></tr>
+        <!-- AL West -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">AL West</td></tr>
+        <tr><td>Houston Astros</td><td>Minute Maid Park</td><td class="mono" style="color:var(--red)">0.96</td><td class="mono" style="color:var(--red)">−0.21</td><td>Retractable; pitcher-friendly</td></tr>
+        <tr><td>Los Angeles Angels</td><td>Angel Stadium</td><td class="mono">1.05</td><td class="mono">+0.27</td><td>Hitter-friendly in warm weather</td></tr>
+        <tr><td>Athletics</td><td>Oakland Coliseum</td><td class="mono" style="color:var(--red)">0.92</td><td class="mono" style="color:var(--red)">−0.42</td><td>Deep gaps suppress HR; cold night air</td></tr>
+        <tr><td>Seattle Mariners</td><td>T-Mobile Park</td><td class="mono" style="color:var(--red)">0.93</td><td class="mono" style="color:var(--red)">−0.37</td><td>Marine air suppresses scoring</td></tr>
+        <tr><td>Texas Rangers</td><td>Globe Life Field</td><td class="mono" style="color:var(--green)">1.07</td><td class="mono" style="color:var(--green)">+0.37</td><td>Retractable; hitter-friendly when open</td></tr>
+        <!-- NL East -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">NL East</td></tr>
+        <tr><td>Atlanta Braves</td><td>Truist Park</td><td class="mono">1.00</td><td class="mono">0.00</td><td>Neutral</td></tr>
+        <tr><td>Miami Marlins</td><td>loanDepot park</td><td class="mono" style="color:var(--red)">0.94</td><td class="mono" style="color:var(--red)">−0.32</td><td>Fixed dome; controlled environment</td></tr>
+        <tr><td>New York Mets</td><td>Citi Field</td><td class="mono" style="color:var(--red)">0.96</td><td class="mono" style="color:var(--red)">−0.21</td><td>Suppressive; sea breezes from Flushing Bay</td></tr>
+        <tr><td>Philadelphia Phillies</td><td>Citizens Bank Park</td><td class="mono" style="color:var(--green)">1.08</td><td class="mono" style="color:var(--green)">+0.42</td><td>Notorious HR park; short porch in right</td></tr>
+        <tr><td>Washington Nationals</td><td>Nationals Park</td><td class="mono">1.00</td><td class="mono">0.00</td><td>Neutral</td></tr>
+        <!-- NL Central -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">NL Central</td></tr>
+        <tr><td>Chicago Cubs</td><td>Wrigley Field</td><td class="mono" style="color:var(--green)">1.06</td><td class="mono" style="color:var(--green)">+0.32</td><td>Wind-sensitive; ivy walls; historically hitter-friendly</td></tr>
+        <tr><td>Cincinnati Reds</td><td>Great American Ball Park</td><td class="mono" style="color:var(--green)">1.07</td><td class="mono" style="color:var(--green)">+0.37</td><td>Short porch in right field</td></tr>
+        <tr><td>Milwaukee Brewers</td><td>American Family Field</td><td class="mono">1.01</td><td class="mono">+0.05</td><td>Retractable; near neutral</td></tr>
+        <tr><td>Pittsburgh Pirates</td><td>PNC Park</td><td class="mono" style="color:var(--red)">0.98</td><td class="mono" style="color:var(--red)">−0.11</td><td>Slight pitcher-friendly</td></tr>
+        <tr><td>St. Louis Cardinals</td><td>Busch Stadium</td><td class="mono" style="color:var(--red)">0.97</td><td class="mono" style="color:var(--red)">−0.16</td><td>Slight pitcher-friendly</td></tr>
+        <!-- NL West -->
+        <tr><td colspan="5" style="background:var(--surface2);color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:8px 14px;">NL West</td></tr>
+        <tr><td>Arizona Diamondbacks</td><td>Chase Field</td><td class="mono">1.04</td><td class="mono">+0.21</td><td>Altitude + dry air; retractable</td></tr>
+        <tr><td>Colorado Rockies</td><td>Coors Field</td><td class="mono" style="color:var(--green)">1.38</td><td class="mono">0.00*</td><td>Extreme altitude 5,197 ft. *Excluded: altitude handled by weather engine (+2.0)</td></tr>
+        <tr><td>Los Angeles Dodgers</td><td>Dodger Stadium</td><td class="mono" style="color:var(--red)">0.96</td><td class="mono" style="color:var(--red)">−0.21</td><td>Marine layer suppresses scoring</td></tr>
+        <tr><td>San Diego Padres</td><td>Petco Park</td><td class="mono" style="color:var(--red)">0.88</td><td class="mono" style="color:var(--red)">−0.64</td><td>Most pitcher-friendly in NL; ocean air</td></tr>
+        <tr><td>San Francisco Giants</td><td>Oracle Park</td><td class="mono" style="color:var(--red)">0.91</td><td class="mono" style="color:var(--red)">−0.48</td><td>Wind off bay suppresses scoring</td></tr>
+      </table>
+    </div>
+
+    <h2>Code Location</h2>
+    <pre><code><span class="cm"># mlb/ballpark_factors.py</span>
+BALLPARK_RUN_FACTORS: Dict[str, float]           <span class="cm"># 30-park table</span>
+get_park_factor(team_key) → float                <span class="cm"># 1.00 default if unknown</span>
+park_ou_adjustment(team_key) → float             <span class="cm"># full formula incl. Coors</span>
+park_ou_adjustment_display(team_key) → float     <span class="cm"># 0.0 for Coors (no double-count)</span>
+park_pitcher_scaling(team_key) → float           <span class="cm"># 2.0−factor, clamp [0.60, 1.25]</span></code></pre>
+  </main>
+</div>
+</body>
+</html>

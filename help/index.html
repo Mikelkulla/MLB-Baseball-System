@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLB Betting System — Documentation</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  /* Index-specific: sidebar links use relative paths */
+  .sidebar a { }
+  .content { margin-left: var(--sidebar-w); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a class="logo" href="index.html">MLB<span> Betting System</span></a>
+  <span class="version">v1.0.0</span>
+  <a class="back-to-system" href="/dashboard" title="Back to system">&#8592; System</a>
+</div>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="nav-section">Getting Started</div>
+    <a href="index.html" class="active"><span class="icon">🏠</span> Home</a>
+    <a href="overview/index.html"><span class="icon">🗺️</span> Architecture</a>
+    <a href="pipeline/index.html"><span class="icon">⚙️</span> Pipeline</a>
+
+    <div class="nav-section">Engine</div>
+    <a href="engine/probability.html"><span class="icon">📊</span> Probability</a>
+    <a href="engine/ev.html"><span class="icon">💰</span> Expected Value</a>
+    <a href="engine/confidence.html"><span class="icon">🎯</span> Confidence &amp; Tiers</a>
+
+    <div class="nav-section">Adjustments</div>
+    <a href="adjustments/pitcher.html"><span class="icon">⚾</span> Pitcher Scoring</a>
+    <a href="adjustments/bullpen.html"><span class="icon">🔄</span> Bullpen Scoring</a>
+    <a href="adjustments/injuries.html"><span class="icon">🏥</span> Injury Impact</a>
+    <a href="adjustments/weather.html"><span class="icon">🌤️</span> Weather Impact</a>
+    <a href="adjustments/park-factors.html"><span class="icon">🏟️</span> Park Factors</a>
+
+    <div class="nav-section">Data Sources</div>
+    <a href="data-sources/index.html"><span class="icon">🔌</span> All Data Sources</a>
+
+    <div class="nav-section">Interface</div>
+    <a href="web/index.html"><span class="icon">🌐</span> Web Pages &amp; API</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="reference/index.html"><span class="icon">📋</span> Formula Reference</a>
+  </nav>
+
+  <main class="content">
+    <div class="hero">
+      <h1>MLB <span>Betting System</span> Docs</h1>
+      <p>Complete technical reference for the Python-based MLB moneyline prediction engine. Covers every formula, adjustment, data source, and safety rule used to generate picks.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-label">Version</div>
+        <div class="stat-val">v1.0.0</div>
+        <div class="stat-desc">Formula alignment</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Adjustments</div>
+        <div class="stat-val">6</div>
+        <div class="stat-desc">Active signal layers</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Data Sources</div>
+        <div class="stat-val">5</div>
+        <div class="stat-desc">Live feeds</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Safety Layers</div>
+        <div class="stat-val">4</div>
+        <div class="stat-desc">Gates &amp; caps</div>
+      </div>
+    </div>
+
+    <h2>Getting Started</h2>
+    <div class="cards">
+      <a class="card" href="overview/index.html">
+        <div class="card-icon">🗺️</div>
+        <h3>Architecture</h3>
+        <p>System overview, data flow diagram, and how all components connect.</p>
+      </a>
+      <a class="card" href="pipeline/index.html">
+        <div class="card-icon">⚙️</div>
+        <h3>Pipeline</h3>
+        <p>Phase 1 data collection, Phase 1B impacts, Phase 2 engine, scheduler.</p>
+      </a>
+      <a class="card" href="reference/index.html">
+        <div class="card-icon">📋</div>
+        <h3>Formula Reference</h3>
+        <p>All formulas in one place — quick lookup while working on picks.</p>
+      </a>
+    </div>
+
+    <h2>Prediction Engine</h2>
+    <div class="cards">
+      <a class="card" href="engine/probability.html">
+        <div class="card-icon">📊</div>
+        <h3>Probability</h3>
+        <p>Vig removal, injury adjustment, pitcher adjustment, bullpen adjustment.</p>
+      </a>
+      <a class="card" href="engine/ev.html">
+        <div class="card-icon">💰</div>
+        <h3>Expected Value</h3>
+        <p>EV formula, odds gate, pick selection by EV (not raw probability).</p>
+      </a>
+      <a class="card" href="engine/confidence.html">
+        <div class="card-icon">🎯</div>
+        <h3>Confidence &amp; Tiers</h3>
+        <p>V8.0 confidence formula, SharpSplit, WPI, tier gating, SafeUnits, safety caps.</p>
+      </a>
+    </div>
+
+    <h2>Adjustments</h2>
+    <div class="cards">
+      <a class="card" href="adjustments/pitcher.html">
+        <div class="card-icon">⚾</div>
+        <h3>Pitcher Scoring</h3>
+        <p>FIP-based 0–100 score, how it shifts win probability, park scaling.</p>
+      </a>
+      <a class="card" href="adjustments/bullpen.html">
+        <div class="card-icon">🔄</div>
+        <h3>Bullpen Scoring</h3>
+        <p>Team pitching depth proxy, FIP/K9/BB9 composite, ±4pp probability shift.</p>
+      </a>
+      <a class="card" href="adjustments/injuries.html">
+        <div class="card-icon">🏥</div>
+        <h3>Injury Impact</h3>
+        <p>Position weights, status multipliers, diminishing returns, SP gate.</p>
+      </a>
+      <a class="card" href="adjustments/weather.html">
+        <div class="card-icon">🌤️</div>
+        <h3>Weather Impact</h3>
+        <p>Wind direction/speed, temperature tiers, precipitation, altitude — all O/U thresholds.</p>
+      </a>
+      <a class="card" href="adjustments/park-factors.html">
+        <div class="card-icon">🏟️</div>
+        <h3>Park Factors</h3>
+        <p>30-park run factor table, O/U adjustment, pitcher-edge scaling by park.</p>
+      </a>
+    </div>
+
+    <h2>Reference</h2>
+    <div class="cards">
+      <a class="card" href="data-sources/index.html">
+        <div class="card-icon">🔌</div>
+        <h3>Data Sources</h3>
+        <p>The Odds API, DraftKings Network, WeatherAPI, Covers.com, MLB Stats API.</p>
+      </a>
+      <a class="card" href="web/index.html">
+        <div class="card-icon">🌐</div>
+        <h3>Web &amp; API</h3>
+        <p>Dashboard pages, REST endpoints, scheduler controls.</p>
+      </a>
+    </div>
+
+    <h2>Quick Start</h2>
+    <pre><code><span class="cm"># Start the server</span>
+<span class="fn">uvicorn</span> app:app --reload --port <span class="num">8000</span>
+
+<span class="cm"># Open the dashboard</span>
+http://localhost:<span class="num">8000</span>
+
+<span class="cm"># Live Picks (qualified bets only)</span>
+http://localhost:<span class="num">8000</span>/predictions
+
+<span class="cm"># MLB Model (all games including PASS)</span>
+http://localhost:<span class="num">8000</span>/model
+
+<span class="cm"># Trigger a manual full refresh</span>
+POST http://localhost:<span class="num">8000</span>/api/predictions/refresh</code></pre>
+
+    <div class="box warn">
+      <div class="box-title">Spring Training Note (March)</div>
+      <p>MLB Stats API returns no 2026 season stats until regular season starts in April. All pitcher and bullpen scores default to 50 (neutral) — no probability adjustment fires. This is correct behavior: the system won't generate qualified picks until real stats are available.</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>
