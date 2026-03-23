@@ -2,7 +2,7 @@
 
 > Authoritative technical reference for Claude Code sessions.
 > Read this file first before making any changes to the codebase.
-> Last updated: March 2026 — v1.0.0
+> Last updated: March 2026 — v1.0.0 (soft EV gate, logged-bet indicators, team registry UI)
 
 ---
 
@@ -81,15 +81,27 @@ MLB Baseball System/
 │   ├── pitcher_impact.py     # Pitcher score (0-100) from stats
 │   └── bullpen_impact.py     # Bullpen depth score (0-100) from team pitching stats
 │
+├── db/
+│   ├── database.py           # read_db / write_db context managers
+│   ├── schema.py             # SQLite schema creation (predictions, bets, clv, config, team_registry, aliases)
+│   └── team_registry.py      # TeamRegistry — per-source name mappings for all 30 teams
+│
 ├── output/
 │   ├── predictions.py        # LivePredictions — in-memory + SQLite upsert
 │   ├── clv_tracker.py        # Closing Line Value tracking
-│   └── bet_logger.py         # Manual bet logging
+│   └── bet_logger.py         # Manual bet logging + logged_matchups_recent()
 │
 ├── mlb/
 │   ├── teams.py              # Team name normalisation
 │   ├── stadiums.py           # Stadium → city/dome mapping
-│   └── ballpark_factors.py   # Park run factors + O/U adjustments
+│   ├── ballpark_factors.py   # Park run factors + O/U adjustments
+│   └── team_resolver.py      # Runtime alias map + unresolved name logging
+│
+├── mlb/
+│   ├── teams.py              # Team name normalisation
+│   ├── stadiums.py           # Stadium → city/dome mapping
+│   ├── ballpark_factors.py   # Park run factors + O/U adjustments
+│   └── team_resolver.py      # Runtime alias map + unresolved name logging
 │
 ├── scheduler/
 │   └── runner.py             # APScheduler background refresh jobs
@@ -97,25 +109,28 @@ MLB Baseball System/
 ├── web/
 │   ├── routers/              # FastAPI route handlers
 │   │   ├── predictions.py    # /api/predictions, /api/predictions/model
-│   │   ├── bets.py           # /api/bets
+│   │   ├── bets.py           # /api/bets, /api/bets/logged-matchups
 │   │   ├── health.py         # /api/health, feed status
 │   │   ├── config_router.py  # /api/config
-│   │   └── scheduler_api.py  # /api/scheduler
+│   │   ├── scheduler_api.py  # /api/scheduler
+│   │   └── teams_router.py   # /api/teams/registry, /api/teams/aliases
 │   ├── templates/            # Jinja2 HTML pages
 │   │   ├── base.html         # Sidebar layout + help button (v1.0.0)
 │   │   ├── index.html        # Dashboard
-│   │   ├── predictions.html  # Live Picks page
+│   │   ├── predictions.html  # Live Picks page (logged-bet indicators + diff modal)
 │   │   ├── model.html        # MLB Model page (all games, 28 columns)
 │   │   ├── bets.html         # Bet logger
 │   │   ├── analytics.html    # Analytics
-│   │   └── config.html       # Config page
+│   │   ├── config.html       # Config page
+│   │   └── teams.html        # Team Registry + Unresolved Names
 │   └── static/
 │       ├── css/main.css
 │       └── js/
-│           ├── api.js        # API.get() / API.post() helpers
+│           ├── api.js        # API.get() / API.post() / API.patch() helpers
 │           ├── utils.js      # fmtOdds, fmtPct, tierBadge, countdown
-│           ├── predictions.js
-│           └── model.js
+│           ├── predictions.js # Live Picks — logged state, diff modal
+│           ├── model.js
+│           └── teams.js      # Team Registry — edit, lock, unresolved fix
 │
 ├── help/                     # Static HTML documentation (served at /help)
 │   ├── index.html            # Documentation hub
@@ -129,7 +144,7 @@ MLB Baseball System/
 │   └── reference/index.html  # All formulas on one page
 │
 ├── output_data/              # Runtime DB + optional CSV exports (gitignored)
-│   └── mlb.db                # SQLite — predictions, bets, clv tables
+│   └── mlb.db                # SQLite — predictions, bets, clv, config, team_registry, aliases
 │
 ├── CLAUDE.md                 # This file
 └── CLAUDE_NOTES.md           # Future enhancement roadmap
@@ -478,7 +493,7 @@ prediction_text                 # human-readable summary
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/predictions` | Qualified picks (non-PASS) from today's JSON |
+| GET | `/api/predictions` | Qualified picks (non-PASS) from DB |
 | GET | `/api/predictions/model` | All games including PASS |
 | POST | `/api/predictions/refresh` | Trigger full pipeline refresh |
 | POST | `/api/predictions/refresh/odds` | Odds only |
@@ -486,8 +501,17 @@ prediction_text                 # human-readable summary
 | GET | `/api/health` | Feed status per data source |
 | GET | `/api/bets` | Logged bets |
 | POST | `/api/bets/log` | Log a bet |
+| GET | `/api/bets/logged-matchups` | Logged bets for upcoming games (±1/+14 day window), keyed by matchup — used by Live Picks for row highlighting and diff modal |
 | GET | `/api/config` | Current scheduler configuration |
 | GET | `/api/scheduler` | Scheduler job status |
+| GET | `/api/teams/registry` | All 30 canonical team rows |
+| PATCH | `/api/teams/registry/{team_key}` | Update source name columns, sets locked=1, hot-reloads resolver |
+| POST | `/api/teams/registry/{team_key}/lock` | Toggle lock flag |
+| POST | `/api/teams/registry/reload` | Hot-reload resolver from registry |
+| GET | `/api/teams/aliases` | All logged alias entries |
+| GET | `/api/teams/aliases/unresolved` | Team names that failed resolution — need manual Fix |
+| POST | `/api/teams/aliases` | Add/confirm an alias mapping |
+| GET | `/api/teams/resolve` | Test-resolve a raw name string |
 
 ---
 
@@ -496,11 +520,12 @@ prediction_text                 # human-readable summary
 | URL | Page | Description |
 |---|---|---|
 | `/dashboard` | Dashboard | Summary cards, feed health |
-| `/predictions` | Live Picks | Qualified picks (GOLD+) with Log Bet button |
+| `/predictions` | Live Picks | Qualified picks (GOLD+) with logged-bet indicators and diff modal |
 | `/model` | MLB Model | ALL games, all tiers including PASS, 28 columns |
 | `/bets` | Bet Logger | Track logged bets |
 | `/analytics` | Analytics | Historical performance |
-| `/config` | Config | Scheduler settings |
+| `/config` | Config | Scheduler settings (saved to DB, not JSON) |
+| `/teams` | Team Registry | 30 canonical teams + unresolved name fixer |
 | `/help` | Documentation | Static HTML docs (served via StaticFiles) |
 | `/docs` | API Docs | FastAPI auto-generated OpenAPI explorer |
 
@@ -567,12 +592,14 @@ DRAFTKINGS_DATE_FILTER  = "n7days"
 
 ## 11. Known Behaviours and Gotchas
 
-### Spring training (March) may show mostly PASS — partially expected
+### Spring training (March) — picks come through via soft EV gate
 - MLB Stats API returns no 2026 season stats until regular season
 - All pitcher and bullpen scores = 50 → no probability adjustment from those sources
-- The ML consensus probability will still diverge from any single book's implied odds,
-  creating some positive-EV picks on correctly-priced underdogs/favorites
-- Will improve further when real pitcher/bullpen stats load in April
+- EV = -(vig%) ≈ -4.5 to -4.7% for all games when stats are absent
+- **Soft EV gate** (implemented): EV < 0 AND prob ≥ 55% → pick through at 1.0u ("EV-CAP")
+  → Heavy favourites (-150 to -200) produce prob 58–65% → qualify as GOLD 1.0u
+  → Near pick-ems (~-110 both sides) produce prob ~51% → still PASS
+- Will improve further when real pitcher/bullpen stats load in April (EV goes positive)
 
 ### EV is identical for both teams — this is correct mathematics
 `EV = 1/overround - 1` when probability = market-implied.
@@ -593,7 +620,9 @@ This is correct — extreme lines (e.g. -800) are not valid betting targets.
 
 ### Pick is by EV, not probability (V8.0 alignment)
 A 45% underdog at +280 can have better EV than a 55% favourite at -190.
-The system picks the highest-EV side. Negative EV → PASS regardless of probability.
+The system picks the highest-EV side.
+Negative EV with prob ≥ 55% → GOLD at 1.0u ("EV-CAP", soft gate).
+Negative EV with prob < 55% → PASS (0 units).
 
 ### Coors Field double-count prevention
 `weather_impact.py` applies +2.0 Over for altitude ≥ 4,000 ft.
@@ -614,6 +643,16 @@ a modest Under adjustment — bat speed reduction dominates at this range.
 ERA and WHIP are stored and displayed for reference only. The scoring formula uses
 FIP (from raw MLB Stats API counts), K/9, BB/9, HR/9, and recent ERA as a form
 signal. ERA excluded because it is contaminated by the defense behind the pitcher.
+
+### Team Registry and unresolved names
+The system logs every team name it receives from each data source. Any name that
+can't be mapped to a canonical team key is stored as "unresolved" and visible at
+`/teams` → Unresolved Names section. Click Fix → to assign it to the correct
+canonical team. The mapping is saved to the `aliases` table and hot-reloaded into
+the resolver immediately — no restart needed.
+`locked = 1` on a registry row means only the UI can change source names for that
+team (auto-population from data feeds is blocked). Lock rows you have manually
+verified to prevent them being overwritten.
 
 ### Bullpen scoring has a 10-game gate
 Teams with fewer than 10 games played return score 50 (neutral). Avoids misleading
