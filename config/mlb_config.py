@@ -10,23 +10,59 @@ from dataclasses import dataclass
 from typing import Dict
 
 # ---------------------------------------------------------------------------
-# MLB Position Weights for injury impact (analogous to V8.0 NFL weights)
-# SP is weighted like QB (8.0) — dominant impact on game outcome
+# MLB Position Weights for injury impact
+#
+# Calibrated against FanGraphs positional adjustments (runs/162g) and
+# MLB-specific WAR research. See research/Q3_injury_position_weights.md.
+#
+# FanGraphs positional adjustment hierarchy (runs per 162 games):
+#   C: +12.5  SS: +7.5  CF/2B/3B: +2.5  LF/RF: -7.5  1B: -12.5  DH: -17.5
+#
+# Key design decisions:
+#   SP=8.0 — market evidence shows 10-15pp shift for ace scratch; 8.0 is
+#             appropriate for average-case (not ace, not replacement-level).
+#             SP gate handles the extreme Out/Doubtful case separately.
+#
+#   C=3.0  — highest positional adjustment (+12.5 runs); framing value
+#             (30-50 runs/season for top framers) is NOT captured in FIP-based
+#             pitcher scoring, so the full effect must be here.
+#
+#   SS=2.0 — second hardest infield position (+7.5 runs); meaningfully above
+#             3B/2B (+2.5 each). Replacement SS scarcity is well-documented.
+#
+#   CF=1.5 — +2.5 run positional adjustment (hardest OF position). Previously
+#             equated to DH at 1.0, which was analytically wrong; CF has real
+#             defensive scarcity that DH does not.
+#
+#   CP=2.0 — reduced from 2.5 to account for bullpen chaining: when closer is
+#             injured, setup man shifts up, net loss is 1.0-1.5 WAR, not 2.5.
+#             Still above SS/RP to reflect high-leverage usage.
+#
+#   DH=0.6 — -17.5 run positional adjustment; no defensive scarcity premium;
+#             purely offensive replacement (backup hitter is always available).
+#             Star DH differentiation belongs in future WAR-based per-player
+#             scoring, not in the flat position weight.
+#
+# Not implemented (future enhancement):
+#   Player-quality multiplier (0.5x-2.0x based on prior-season WAR):
+#   A 7-WAR SS injury vs a 1.5-WAR SS injury creates fundamentally different
+#   win probability shifts that position weights alone cannot capture.
+#   Requires per-player WAR lookup from Baseball-Reference or FanGraphs API.
 # ---------------------------------------------------------------------------
 MLB_POSITION_WEIGHTS: Dict[str, float] = {
-    "SP":  8.0,   # Starting Pitcher — game-defining like QB in NFL
-    "CP":  2.5,   # Closer
-    "RP":  1.5,   # Relief Pitcher
-    "C":   2.0,   # Catcher
-    "SS":  1.5,   # Shortstop
-    "3B":  1.2,
-    "2B":  1.0,
-    "1B":  0.8,
-    "CF":  1.0,
-    "LF":  0.8,
-    "RF":  0.8,
-    "DH":  1.0,
-    "MR":  1.2,   # Middle Reliever (setup man)
+    "SP":  8.0,   # Starting Pitcher — game-defining; market confirms ~10-15pp for ace
+    "C":   3.0,   # Catcher — highest positional adj (+12.5 runs); framing uncaptured elsewhere
+    "SS":  2.0,   # Shortstop — second hardest infield position (+7.5 runs)
+    "CP":  2.0,   # Closer — LI ~1.8; chaining effect limits net loss to ~1.0-1.5 WAR
+    "CF":  1.5,   # Center Field — +2.5 run positional adj; harder than corner OF
+    "3B":  1.2,   # Third Base — +2.5 run positional adj (same tier as 2B analytically)
+    "MR":  1.2,   # Middle Reliever (setup man) — high-leverage bridge to closer
+    "RP":  1.5,   # Relief Pitcher (8th inning / high-leverage) — LI 1.2-1.5
+    "2B":  1.0,   # Second Base — +2.5 run positional adj
+    "DH":  0.6,   # Designated Hitter — -17.5 run adj; no defensive scarcity
+    "1B":  0.8,   # First Base — -12.5 run adj; easiest infield position to fill
+    "LF":  0.8,   # Left Field — -7.5 run adj; corner OF
+    "RF":  0.8,   # Right Field — -7.5 run adj; corner OF
 }
 
 # ---------------------------------------------------------------------------
