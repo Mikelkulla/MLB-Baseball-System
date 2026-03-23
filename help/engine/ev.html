@@ -42,6 +42,14 @@
       <p>How EV% is calculated, what it means, why the pick is chosen by EV not probability, and when EV is shown as "—".</p>
     </div>
 
+    <h2>Probability Source — Always Moneyline</h2>
+    <p>Win probability is always derived from ML (moneyline) odds — never from run line prices.</p>
+    <div class="box warn">
+      <div class="box-title">Why not the run line?</div>
+      <p>The run line is a <strong>different event</strong>: it requires winning by 2+ runs. Since ~28% of MLB games end by exactly 1 run, a team's run line win probability is roughly <code>ML_win_prob × 72%</code>. If you use run line prices for both probability <em>and</em> EV, the two cancel out and EV always equals <code>−(vig%)</code> — every game PASSes regardless of the model's adjustments.</p>
+    </div>
+    <p>EV is calculated against the <strong>best available ML price</strong> across all books. Probability and EV target the same event (win the game), so the comparison is correct.</p>
+
     <h2>EV Formula</h2>
     <p>Expected Value measures the average return per unit staked across many identical bets. A positive EV% means profitable over the long run.</p>
     <div class="formula">
@@ -49,7 +57,7 @@
       If odds ≥ 0:  decimal = 1 + odds / 100<br>
       If odds &lt; 0:  decimal = 1 + 100 / |odds|<br>
       <br>
-      <span class="cm"># Examples: +130 → 2.30,  -150 → 1.667,  -110 → 1.909</span>
+      <span class="cm"># Examples: +130 → 2.30,  -150 → 1.667,  +100 → 2.00</span>
     </div>
     <div class="formula">
       <div class="label">EV% Calculation (stake = 1 unit)</div>
@@ -57,27 +65,22 @@
       EV = (prob × profit_if_win) − ((1 − prob) × 1)<br>
       EV% = EV × 100<br>
       <br>
-      <span class="cm"># Example: 55% probability at -110</span><br>
-      decimal = 1.909,  profit = 0.909<br>
-      EV = (0.55 × 0.909) − (0.45 × 1) = 0.500 − 0.450 = +0.050<br>
-      EV% = +5.0%
+      <span class="cm"># Example: consensus ML gives 55% true probability, best book offers +120</span><br>
+      decimal = 2.20,  profit = 1.20<br>
+      EV = (0.55 × 1.20) − (0.45 × 1) = 0.660 − 0.450 = +0.210<br>
+      EV% = +21.0%  ✓ PICK
     </div>
 
     <h2>What EV% Means in Practice</h2>
     <div class="table-wrap">
       <table>
         <tr><th>EV%</th><th>Meaning</th></tr>
-        <tr><td class="mono" style="color:var(--green)">+5.0%</td><td>Expected to return +0.05u profit per 1u bet, long-term average</td></tr>
-        <tr><td class="mono" style="color:var(--green)">+2.0%</td><td>Thin edge — qualifies but treated carefully</td></tr>
-        <tr><td class="mono">0.0%</td><td>Break-even — market probability exactly matches model probability</td></tr>
-        <tr><td class="mono" style="color:var(--red)">−4.7%</td><td>The typical EV when NO adjustments are active (spring training) — the vig%</td></tr>
-        <tr><td class="mono" style="color:var(--red)">−10%+</td><td>Extreme underdog at poor price</td></tr>
+        <tr><td class="mono" style="color:var(--green)">+10%+</td><td>Strong edge — consensus probability vs. single book ML divergence</td></tr>
+        <tr><td class="mono" style="color:var(--green)">+2–5%</td><td>Thin edge with adjustments — pitcher/injury signal pushing probability</td></tr>
+        <tr><td class="mono">0.0%</td><td>Break-even — model probability exactly matches the book's implied probability</td></tr>
+        <tr><td class="mono" style="color:var(--red)">−4.7%</td><td>Typical EV when no edge exists — the vig embedded in the odds</td></tr>
+        <tr><td class="mono" style="color:var(--red)">−10%+</td><td>Underdog at poor price, or model strongly disagrees in the wrong direction</td></tr>
       </table>
-    </div>
-
-    <div class="box info">
-      <div class="box-title">Why both sides show the same EV in spring training</div>
-      <p>When pitcher/injury adjustments are inactive (all scores = 50), the model probability equals the market-implied probability. In this case <code>EV = 1/overround − 1</code>, which is the same negative value for both sides. EV only diverges between sides when the model disagrees with the market.</p>
     </div>
 
     <h2>Odds Gate (±400)</h2>
@@ -87,23 +90,33 @@
 EV_ODDS_MIN = <span class="num">-400</span>
 EV_ODDS_MAX = <span class="num">+400</span></code></pre>
 
-    <h2>Pick Selection — EV, Not Probability (V8.0)</h2>
+    <h2>Pick Selection — EV, Not Probability</h2>
     <p>The system calculates EV for <strong>both sides</strong> independently, then picks the side with the higher EV.</p>
     <div class="formula">
       <div class="label">Pick Selection</div>
-      away_ev = EVCalculator.calculate(away_prob, away_ml_odds)<br>
-      home_ev = EVCalculator.calculate(home_prob, home_ml_odds)<br>
+      away_ev = EVCalculator.calculate(away_prob, best_away_ml_price)<br>
+      home_ev = EVCalculator.calculate(home_prob, best_home_ml_price)<br>
       <br>
       pick = side with higher EV<br>
-      if best_ev &lt; 0: → PASS immediately (negative EV gate)
+      tiebreaker = underdog (positive ML odds)<br>
+      if best_ev &lt; 0: → PASS (units = 0, tier kept for display)
     </div>
     <div class="box warn">
       <div class="box-title">Why EV, not probability?</div>
-      <p>A 45% underdog at +280 has better EV than a 55% favourite at −190. Picking by probability alone would always take the higher-probability side, even when the price is terrible. Picking by EV ensures you only bet when the odds offer value relative to the model's probability estimate.</p>
+      <p>A 45% underdog at +280 has better EV than a 55% favourite at −190. Picking by probability alone would always take the higher-probability side, even when the price is poor. Picking by EV ensures you only bet when the odds offer value relative to the model's probability estimate.</p>
     </div>
 
-    <h2>Negative EV Gate</h2>
-    <p>If the best EV across both sides is negative, the game is immediately classified as <span class="pill pass">PASS</span> — no further processing. This is the single most important filter. During spring training when no adjustments are active, every game will fail this gate.</p>
+    <h2>Soft EV Gate</h2>
+    <p>When the best EV across both sides is negative, the system applies a <strong>soft gate</strong> based on the model's win probability for the picked side:</p>
+    <div class="formula">
+      if EV &lt; 0 AND prob ≥ 55%  →  pick kept, units capped at 1.0u  <span class="cm"># "EV-CAP"</span><br>
+      if EV &lt; 0 AND prob &lt; 55%  →  PASS (0 units)
+    </div>
+    <p>This means the system can still surface picks during periods when EV is structurally negative (e.g. spring training, when no independent probability edge exists), as long as the probability signal is meaningful. The tier label and confidence score are always shown so you can evaluate the model's view regardless of the gate result.</p>
+    <div class="box info">
+      <div class="box-title">Why 55%?</div>
+      <p>55% matches the GOLD tier minimum confidence threshold — it is the lowest level at which the model considers a probability signal non-trivial. Below 55% the model has no meaningful edge over a coin flip at −110 prices, so a hard PASS is applied.</p>
+    </div>
 
     <h2>Code Location</h2>
     <pre><code><span class="cm"># File: engine/ev_calculator.py</span>

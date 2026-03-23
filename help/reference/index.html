@@ -91,13 +91,22 @@
       decimal (odds ≥ 0) = 1 + odds / 100<br>
       decimal (odds &lt; 0) = 1 + 100 / |odds|<br>
       EV% = ((prob/100 × (decimal − 1)) − ((1 − prob/100) × 1)) × 100<br>
+      <span class="cm"># prob always from ML vig-removal (consensus across books when available)</span><br>
+      <span class="cm"># odds = best available ML price across all books</span><br>
+      <span class="cm"># Run line prices NOT used — run line is a different event (win by 2+)</span><br>
       <span class="cm"># Returns None if |odds| &gt; 400</span>
     </div>
 
     <h2>7. Pick Selection</h2>
     <div class="formula">
+      away_ev = EV(away_prob, best_away_ml_price)<br>
+      home_ev = EV(home_prob, best_home_ml_price)<br>
       pick = argmax(away_ev, home_ev)<br>
-      if best_ev &lt; 0: → PASS
+      tiebreaker = underdog (positive ML odds)<br>
+      <br>
+      <span class="cm"># Soft EV gate (EV_SOFT_GATE_PROB_MIN = 55%)</span><br>
+      if best_ev &lt; 0 AND prob ≥ 55%: → keep pick, cap units at 1.0u<br>
+      if best_ev &lt; 0 AND prob &lt; 55%: → PASS (units = 0, tier kept for display)
     </div>
 
     <h2>8. SharpSplit &amp; WPI</h2>

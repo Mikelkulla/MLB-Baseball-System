@@ -178,7 +178,8 @@ MLB Baseball System/
 │  4. bullpen probability adjustment (±4pp max)              │
 │  5. EV for both sides                                       │
 │  6. Pick by highest EV                                      │
-│  7. Negative EV gate → PASS                                 │
+│  7. Soft EV gate: EV<0 + prob≥55% → cap units at 1.0u      │
+│     EV<0 + prob<55% → PASS                                  │
 │  8. CLV delta (opening vs current spread)                   │
 │  9. SharpSplit = ourHandle% - ourBets%  (signed)            │
 │  10. WPI = 50 + (ourHandle - 50) × 1.5                     │
@@ -248,13 +249,19 @@ decimal_odds = 1 + 100 / abs(american) # if negative
 ev_pct = (prob/100 * (decimal - 1)) - ((1 - prob/100) * 1)  # × 100
 ```
 EV gate: ±400 (covers all realistic MLB lines).
-EV = -(vig%) when prob = market-implied (no adjustments active).
-EV diverges when pitcher/injury/bullpen adjustments shift prob away from market.
+Probability always comes from ML vig-removal. EV is calculated against the best
+available ML price across all books — same event, same market, correct comparison.
+Run line prices are NOT used for probability (the run line is a different event:
+win by 2+, ≈72% of ML wins due to 28% of MLB games ending by exactly 1 run).
+Using run line prices for both probability AND EV is circular and always yields
+EV = -(vig%), making every game PASS.
 
 ### Pick Selection (V8.0: by EV, not probability)
 ```python
 # Calculate EV for both sides, pick the higher one
-# If best EV < 0 → PASS immediately (negative EV gate)
+# Soft EV gate (EV_SOFT_GATE_PROB_MIN = 55.0):
+#   EV < 0  AND  prob >= 55% → pick kept, units capped at 1.0u  ("EV-CAP")
+#   EV < 0  AND  prob <  55% → PASS (0 units)
 ```
 
 ### SharpSplit and WPI (V8.0)
@@ -287,6 +294,8 @@ Steam-against cap:   CLV adverse ≥ 1.5pts → cap confidence at 74%
 Steam auto-pass:     CLV adverse ≥ 2.0pts → 0 units (tier kept)
 LineFlip cap:        spread sign changed + SharpScore < 70 → cap at 74%
 SP gate:             sp_gate_blocked = True → 0 units
+Soft EV gate:        EV < 0 AND prob ≥ 55% → units capped at 1.0u (keeps tier)
+                     EV < 0 AND prob < 55% → PASS (0 units)
 ```
 
 ### Pitcher Score (0–100)
@@ -557,10 +566,12 @@ DRAFTKINGS_DATE_FILTER  = "n7days"
 
 ## 11. Known Behaviours and Gotchas
 
-### Spring training (March) shows all PASS — this is correct
+### Spring training (March) may show mostly PASS — partially expected
 - MLB Stats API returns no 2026 season stats until regular season
-- All pitcher and bullpen scores = 50 → no probability adjustment → EV = -(vig%) always
-- Will naturally improve when real stats load in April
+- All pitcher and bullpen scores = 50 → no probability adjustment from those sources
+- The ML consensus probability will still diverge from any single book's implied odds,
+  creating some positive-EV picks on correctly-priced underdogs/favorites
+- Will improve further when real pitcher/bullpen stats load in April
 
 ### EV is identical for both teams — this is correct mathematics
 `EV = 1/overround - 1` when probability = market-implied.
@@ -621,7 +632,7 @@ enhancements (bullpen scoring, park factors) layered on top:
 | WPI = 50 + (handle-50) × 1.5 | Done | `engine/prediction_engine.py` |
 | SharpScore = 50 + split×0.5 + (wpi-50)×0.4 | Done | `engine/confidence.py` |
 | Pick by EV (not probability) | Done | `engine/prediction_engine.py` |
-| Negative EV gate → PASS | Done | `engine/prediction_engine.py` |
+| Soft EV gate (EV<0+prob≥55% → cap 1u; else PASS) | Done | `engine/prediction_engine.py` |
 | Steam-against cap (≥1.5pts) | Done | `engine/prediction_engine.py` |
 | Steam auto-pass (≥2pts) | Done | `engine/prediction_engine.py` |
 | LineFlip cap | Done | `engine/prediction_engine.py` |

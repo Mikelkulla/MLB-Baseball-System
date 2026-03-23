@@ -2,9 +2,13 @@
 PredictionEngine — orchestrates all calculation modules for a single game.
 V8.0 Phase 2 equivalent.
 
-Key V8.0 alignments:
+Key alignments:
+- Probability always from ML vig-removal (consensus across books when available).
+  Run line prices are NOT used for probability — the run line is a different event
+  (win by 2+, ~72% of ML wins) and using it circularly guarantees EV = -(vig%).
+- EV calculated against best available ML prices across all books.
 - Pick by highest EV side (not highest probability)
-- Negative EV → immediate PASS
+- Negative EV → PASS (units zeroed, tier kept for display)
 - SharpSplit = ourHandle% - ourBets%  (signed)
 - WPI        = 50 + (ourHandle - 50) * 1.5
 - SharpScore = 50 + SharpSplit*0.5 + (WPI-50)*0.4
@@ -13,6 +17,7 @@ Key V8.0 alignments:
 - Steam auto-pass:   line moved ≥2.0pts adverse → 0 units
 - LineFlip cap:      spread sign changed + SharpScore<70 → cap conf at 74%
 - WPI tier gating via ConfidenceEngine.assign_tier()
+- Spread data retained for CLV tracking, LineFlip, and display columns only
 """
 
 from __future__ import annotations
@@ -62,42 +67,25 @@ class PredictionEngine:
             )
             return self._empty_prediction(game)
 
-        # --- 1b. Determine bet market (V8.0: spread is primary, ML is fallback) ---
-        # V8.0 Phase2_formulas.js uses AwaySpreadPrice/HomeSpreadPrice (AA2/AD2) for
-        # probability and EV. Only fall back to ML when no spread data is available.
+        # --- 1b. Detect available markets ---
+        # bet_type is always MONEYLINE. ML odds represent true win probability.
+        # Run line prices reflect "win by 2+" (~72% of ML wins due to 28% of MLB
+        # games ending by exactly 1 run) — a different event. Using run line prices
+        # for probability creates circular EV that is always negative (= -(vig%)).
+        # Spread data is still collected for CLV tracking, LineFlip, and display.
         has_spread = odds.away_spread is not None and odds.home_spread is not None
-        if has_spread:
-            prob_away_price = odds.away_spread.price
-            prob_home_price = odds.home_spread.price
-            bet_type = "SPREAD"
-            logger.debug(
-                "[%s] Market: SPREAD (run line)  Away: %+.1f @ %+d  Home: %+.1f @ %+d  Books: %d",
-                matchup_label,
-                odds.away_spread.point, odds.away_spread.price,
-                odds.home_spread.point, odds.home_spread.price,
-                odds.book_count,
-            )
-        else:
-            prob_away_price = odds.away_ml.price
-            prob_home_price = odds.home_ml.price
-            bet_type = "MONEYLINE"
-            logger.debug(
-                "[%s] Market: MONEYLINE (no spread data)  Away ML: %+d  Home ML: %+d  Books: %d",
-                matchup_label, odds.away_ml.price, odds.home_ml.price, odds.book_count,
-            )
+        bet_type = "MONEYLINE"
+        logger.debug(
+            "[%s] Market: MONEYLINE  Away: %+d  Home: %+d  Books: %d  Spread available: %s",
+            matchup_label,
+            odds.away_ml.price, odds.home_ml.price,
+            odds.book_count, has_spread,
+        )
 
-        # --- 2. Probability estimate ---
-        # V8.0: vig-free probability from spread prices (AA2/AD2).
-        # When falling back to ML (no spread data), prefer consensus across books.
-        if has_spread:
-            # Primary V8.0 path: vig-free from spread prices
-            away_prob, home_prob = self._prob.remove_vig(prob_away_price, prob_home_price)
-            logger.debug(
-                "[%s] Probability source: SPREAD VIG-REMOVAL — Away: %.2f%%  Home: %.2f%%",
-                matchup_label, away_prob, home_prob,
-            )
-        elif odds.consensus_away_prob is not None:
-            # ML fallback path: consensus across all books
+        # --- 2. Probability estimate (always from ML odds) ---
+        # Prefer consensus across all available books — removes single-book bias.
+        # Falls back to single-book vig removal when only one book is available.
+        if odds.consensus_away_prob is not None:
             away_prob = odds.consensus_away_prob
             home_prob = odds.consensus_home_prob
             logger.debug(
@@ -105,8 +93,7 @@ class PredictionEngine:
                 matchup_label, odds.book_count, away_prob, home_prob,
             )
         else:
-            # ML fallback path: single-book vig removal
-            away_prob, home_prob = self._prob.remove_vig(prob_away_price, prob_home_price)
+            away_prob, home_prob = self._prob.remove_vig(odds.away_ml.price, odds.home_ml.price)
             logger.debug(
                 "[%s] Probability source: ML VIG-REMOVAL (single book) — Away: %.2f%%  Home: %.2f%%",
                 matchup_label, away_prob, home_prob,
@@ -172,34 +159,24 @@ class PredictionEngine:
             away_prob, home_prob,
         )
 
-        # --- 4. EV for BOTH sides ---
-        # V8.0: EV uses the same prices as probability (spread when available, ML fallback).
-        # Spread = best price across all books (already collected in odds_client).
-        # ML fallback = best ML price across all books.
+        # --- 4. EV for BOTH sides (against best available ML prices) ---
+        # Probability comes from ML vig-removal; EV is calculated against the best
+        # ML price available across all books. This is the correct pairing:
+        # same event (win the game) for both probability and EV target.
         best_away_ml = odds.best_away_ml or odds.away_ml
         best_home_ml = odds.best_home_ml or odds.home_ml
 
-        if has_spread:
-            # V8.0 primary path: EV from spread prices
-            away_ev_raw = self._ev.calculate(away_prob, odds.away_spread.price)
-            home_ev_raw = self._ev.calculate(home_prob, odds.home_spread.price)
-            ev_away_price = odds.away_spread.price
-            ev_home_price = odds.home_spread.price
-            ev_source = "SPREAD"
-        else:
-            # ML fallback
-            away_ev_raw = self._ev.calculate(away_prob, best_away_ml.price)
-            home_ev_raw = self._ev.calculate(home_prob, best_home_ml.price)
-            ev_away_price = best_away_ml.price
-            ev_home_price = best_home_ml.price
-            ev_source = "ML"
+        away_ev_raw = self._ev.calculate(away_prob, best_away_ml.price)
+        home_ev_raw = self._ev.calculate(home_prob, best_home_ml.price)
+        ev_away_price = best_away_ml.price
+        ev_home_price = best_home_ml.price
 
         away_ev_cmp = away_ev_raw if away_ev_raw is not None else -999.0
         home_ev_cmp = home_ev_raw if home_ev_raw is not None else -999.0
 
         logger.debug(
-            "[%s] EV (%s) — Away: %s at %+d  Home: %s at %+d",
-            matchup_label, ev_source,
+            "[%s] EV (ML) — Away: %s at %+d  Home: %s at %+d",
+            matchup_label,
             f"{away_ev_raw:+.2f}%" if away_ev_raw is not None else "N/A",
             ev_away_price,
             f"{home_ev_raw:+.2f}%" if home_ev_raw is not None else "N/A",
@@ -214,18 +191,15 @@ class PredictionEngine:
         elif home_ev_cmp > away_ev_cmp:
             picked_side = "home"
         else:
-            # Tiebreaker: underdog (positive spread = underdog in V8.0)
-            picked_side = "away" if (odds.away_spread and odds.away_spread.point > 0) else "home"
+            # Tiebreaker: underdog (positive ML = underdog)
+            picked_side = "away" if odds.away_ml.price > 0 else "home"
 
         prob_pct = away_prob if picked_side == "away" else home_prob
         ev_pct_raw = away_ev_raw if picked_side == "away" else home_ev_raw
         ev_pct = ev_pct_raw if ev_pct_raw is not None else (away_ev_cmp if picked_side == "away" else home_ev_cmp)
 
-        # bet_price: spread price when betting spread, ML when no spread data
-        if has_spread:
-            bet_price = odds.away_spread.price if picked_side == "away" else odds.home_spread.price
-        else:
-            bet_price = best_away_ml.price if picked_side == "away" else best_home_ml.price
+        # bet_price: best available ML price for the picked side
+        bet_price = best_away_ml.price if picked_side == "away" else best_home_ml.price
 
         logger.debug(
             "[%s] Pick: %s  Prob: %.2f%%  EV: %+.2f%%  Price: %+d",
@@ -340,16 +314,30 @@ class PredictionEngine:
                 matchup_label, tier_name,
             )
 
-        # --- 14b. Negative EV gate: override status and units (V8.0 alignment) ---
-        # V8.0: UNITS=0 when PickedEV<0, STATUS="Pass" when PickedEV<0.
-        # Confidence is kept so the user can see the model score even for EV-negative games.
+        # --- 14b. Negative EV gate ---
+        # If EV is negative AND probability is high enough (≥55%), allow the pick
+        # through but cap units at 1.0u — covers spring training / data-sparse periods
+        # where no independent probability edge exists yet but the model has some signal.
+        # If EV is negative AND probability is below threshold → hard PASS (0 units).
+        EV_SOFT_GATE_PROB_MIN = 55.0
         if ev_negative:
-            safe_units = 0.0
-            tier_name = "PASS"
-            logger.info(
-                "[%s] PASS — negative EV gate (EV=%+.2f%%)  Conf=%.1f%%  WPI=%.0f",
-                matchup_label, ev_pct, confidence_pct, wpi,
-            )
+            if prob_pct >= EV_SOFT_GATE_PROB_MIN:
+                safe_units = min(safe_units, 1.0)
+                logger.info(
+                    "[%s] EV-CAP — negative EV but prob=%.1f%% >= %.0f%% threshold "
+                    "(EV=%+.2f%%)  units capped at 1.0u  Conf=%.1f%%  WPI=%.0f",
+                    matchup_label, prob_pct, EV_SOFT_GATE_PROB_MIN,
+                    ev_pct, confidence_pct, wpi,
+                )
+            else:
+                safe_units = 0.0
+                tier_name = "PASS"
+                logger.info(
+                    "[%s] PASS — negative EV gate (EV=%+.2f%%)  prob=%.1f%% < %.0f%%  "
+                    "Conf=%.1f%%  WPI=%.0f",
+                    matchup_label, ev_pct, prob_pct, EV_SOFT_GATE_PROB_MIN,
+                    confidence_pct, wpi,
+                )
 
         # --- 14c. Spread limit gate (V8.0 BETTING_CONFIG.spreadLimit = 9) ---
         # If the picked side's spread is >= SPREAD_LIMIT in absolute value → PASS.
