@@ -30,7 +30,7 @@ const DIV_CLASS = {
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', loadRegistry);
+document.addEventListener('DOMContentLoaded', () => { loadRegistry(); loadUnresolved(); });
 
 async function loadRegistry() {
   try {
@@ -248,3 +248,68 @@ function escHtml(str) {
 }
 
 // API.patch is defined in api.js (loaded via base.html before this file).
+
+// ── Unresolved team names ─────────────────────────────────────────────────────
+
+let _unresolved = [];
+let _fixingRaw  = '';
+
+async function loadUnresolved() {
+  const tbody = document.getElementById('unresolved-tbody');
+  const badge = document.getElementById('unresolved-count');
+  try {
+    const data = await API.get('/api/teams/aliases/unresolved?limit=200');
+    _unresolved = data.unresolved || [];
+    badge.textContent = _unresolved.length || '0';
+    badge.style.display = _unresolved.length ? '' : 'none';
+
+    if (!_unresolved.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">✓ No unresolved names — all data sources mapped correctly.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _unresolved.map(u => `
+      <tr>
+        <td><span class="raw-name">${escHtml(u.raw_name)}</span></td>
+        <td><span class="source-badge">${escHtml(u.source || '—')}</span></td>
+        <td style="color:var(--text-muted)">${u.count ?? 1}</td>
+        <td style="color:var(--text-muted);font-size:11px">${u.last_seen ? new Date(u.last_seen).toLocaleString() : '—'}</td>
+        <td><button class="btn btn-primary btn-sm" data-raw="${escHtml(u.raw_name)}" onclick="openFixModal(this.dataset.raw)">Fix →</button></td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:#f85149;text-align:center;padding:20px">Failed: ${e.message}</td></tr>`;
+    if (badge) badge.textContent = '?';
+  }
+}
+
+function openFixModal(rawName) {
+  _fixingRaw = rawName;
+  document.getElementById('fix-raw-name').textContent = rawName;
+
+  // Populate the team dropdown from the already-loaded registry
+  const select = document.getElementById('fix-team-select');
+  const sorted = [..._teams].sort((a, b) =>
+    `${a.display_city} ${a.display_name}`.localeCompare(`${b.display_city} ${b.display_name}`)
+  );
+  select.innerHTML = '<option value="">— select a team —</option>' +
+    sorted.map(t => `<option value="${escHtml(t.team_key)}">${escHtml(t.display_city)} ${escHtml(t.display_name)} (${escHtml(t.abbreviation)})</option>`).join('');
+
+  document.getElementById('fix-modal').classList.add('open');
+}
+
+function closeFixModal() {
+  document.getElementById('fix-modal').classList.remove('open');
+  _fixingRaw = '';
+}
+
+async function confirmFix() {
+  const canonicalKey = document.getElementById('fix-team-select').value;
+  if (!canonicalKey) { toast('Select a team first', 'error'); return; }
+  try {
+    await API.post('/api/teams/aliases', { raw_name: _fixingRaw, canonical_key: canonicalKey });
+    toast(`Mapped "${_fixingRaw}" → ${canonicalKey}`, 'success');
+    closeFixModal();
+    loadUnresolved();   // refresh the list
+  } catch(e) {
+    toast(`Failed: ${e.message}`, 'error');
+  }
+}

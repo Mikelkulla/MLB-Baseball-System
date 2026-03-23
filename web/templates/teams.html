@@ -166,6 +166,79 @@ tr.row-locked td { background: rgba(227,179,65,0.03); }
 .notes-input {
   width: 160px !important;
 }
+
+/* ── Unresolved section ──────────────────────────────────────────────────── */
+.unresolved-section {
+  margin-top: 28px;
+}
+.unresolved-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.unresolved-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.badge-unresolved {
+  background: rgba(248,81,73,0.15);
+  color: #f85149;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.unresolved-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.unresolved-table th {
+  background: #161b22;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.unresolved-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+}
+.unresolved-table tr:last-child td { border-bottom: none; }
+.unresolved-table tr:hover td { background: rgba(255,255,255,0.03); }
+.raw-name { color: #f85149; font-weight: 500; font-family: monospace; font-size: 12px; }
+.source-badge {
+  display: inline-block;
+  background: rgba(88,166,255,0.1);
+  color: #58a6ff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Fix modal */
+.fix-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 100%;
+  margin-top: 10px;
+}
 </style>
 {% endblock %}
 
@@ -195,6 +268,51 @@ tr.row-locked td { background: rgba(227,179,65,0.03); }
       <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px">Loading…</td></tr>
     </tbody>
   </table>
+</div>
+
+<!-- ── Unresolved Names ─────────────────────────────────────────────────── -->
+<div class="unresolved-section">
+  <div class="unresolved-header">
+    <h3>Unresolved Team Names</h3>
+    <span class="badge-unresolved" id="unresolved-count">…</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadUnresolved()" style="margin-left:auto">↻ Refresh</button>
+  </div>
+  <div class="reg-table-wrap">
+    <table class="unresolved-table">
+      <thead>
+        <tr>
+          <th>Raw Name (as received)</th>
+          <th>Source</th>
+          <th>Times Seen</th>
+          <th>Last Seen</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="unresolved-tbody">
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Fix alias modal -->
+<div class="modal-overlay" id="fix-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h3 class="modal-title">Fix Unresolved Name</h3>
+      <button class="modal-close" onclick="closeFixModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px">Raw name from data source:</p>
+      <p style="font-family:monospace;color:#f85149;font-size:14px;margin:0 0 14px" id="fix-raw-name"></p>
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 4px">Map to canonical team:</p>
+      <select class="fix-select" id="fix-team-select"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeFixModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmFix()">Save Mapping</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
