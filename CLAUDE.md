@@ -233,14 +233,17 @@ SP gate:             sp_gate_blocked = True → 0 units
 
 ### Pitcher Score (0–100)
 ```python
+# FIP-based formula (fielding-independent — ERA and WHIP intentionally excluded)
+# FIP calculated from raw counts: ((13×HR) + (3×(BB+HBP)) - (2×K)) / IP + 3.17
 composite = (
-    era_score  * 0.30 +
-    whip_score * 0.25 +
-    k9_score   * 0.20 +
-    bb9_score  * 0.15 +
-    recent_era * 0.10
+    fip_score    * 0.40 +   # FIP: best single predictor of future ERA (FanGraphs)
+    k9_score     * 0.25 +   # K/9: most durable and consistent pitcher skill
+    bb9_score    * 0.20 +   # BB/9: highly consistent year-to-year
+    hr9_score    * 0.10 +   # HR/9: real but partly park/luck noise
+    recent_era   * 0.05     # last-3-starts ERA: small form signal, low weight
 )
-# Each stat scored 0-100 relative to league average (ERA 4.20, WHIP 1.30, K/9 8.80, BB/9 3.10)
+# League averages (2024): FIP 4.20, K/9 8.80, BB/9 3.10, HR/9 1.15
+# ERA and WHIP stored for display only — NOT used in scoring (defense-contaminated)
 # TBD pitcher = 50 (neutral)
 ```
 
@@ -447,6 +450,24 @@ This is correct — extreme lines (e.g. -800) are not valid betting targets.
 ### Pick is by EV, not probability (V8.0 alignment)
 A 45% underdog at +280 can have better EV than a 55% favourite at -190.
 The system picks the highest-EV side. Negative EV → PASS regardless of probability.
+
+### Weather cold logic is counterintuitive by design
+Below 40°F the system applies a slight **Over** adjustment, not Under.
+Research (Action Network, multiple MLB sample studies) shows OVER hits ~57% below 40°F
+because pitcher grip and command loss in extreme cold creates more walks and wild pitches,
+which outweighs the bat-speed reduction effect. Temperatures 41-55°F (cool) apply a modest
+Under adjustment — this range is where bat speed reduction dominates.
+
+### Light rain is an Over signal
+The system applies a +0.5 Over adjustment for light rain. This is correct per research:
+light precipitation causes 3.6% more runs on average because pitcher grip issues in wet
+conditions lead to more walks and errant pitches. Only heavy rain suppresses scoring
+(game disruption, slower play).
+
+### FIP replaces ERA in pitcher scoring
+ERA and WHIP are stored and displayed for reference only. The scoring formula uses FIP
+(calculated from raw MLB Stats API counts), K/9, BB/9, HR/9, and recent ERA as a form
+signal. ERA is excluded because it is contaminated by the defense behind the pitcher.
 
 ---
 
