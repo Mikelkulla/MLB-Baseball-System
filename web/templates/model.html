@@ -90,6 +90,8 @@
           <th onclick="sortTable('matchup')"        title="Away team @ Home team">Matchup</th>
           <th title="Away starting pitcher and their impact score (0–100). 50 = league average. Higher = better pitcher. TBD means the team hasn't announced their starter yet.">Away SP</th>
           <th title="Home starting pitcher and their impact score (0–100). 50 = league average. Higher = better pitcher. TBD means the team hasn't announced their starter yet.">Home SP</th>
+          <th onclick="sortTable('away_bullpen_score')" title="Away team pitching depth score (0–100). Derived from team aggregate FIP, K/9, and BB/9 — a proxy for overall bullpen quality. 50 = league average. Scores below 10 games played default to 50 (spring training gate).">Away BP</th>
+          <th onclick="sortTable('home_bullpen_score')" title="Home team pitching depth score (0–100). Derived from team aggregate FIP, K/9, and BB/9 — a proxy for overall bullpen quality. 50 = league average. Scores below 10 games played default to 50 (spring training gate).">Home BP</th>
           <th title="Away team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Away ML</th>
           <th title="Home team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Home ML</th>
           <th title="Away team run line (always ±1.5 in MLB) and price. Source: DraftKings.">Away Spread</th>
@@ -114,7 +116,7 @@
       </thead>
       <tbody id="model-tbody">
         <tr>
-          <td colspan="24">
+          <td colspan="26">
             <div class="empty-state">
               <div class="empty-icon">⚾</div>
               <p>Loading…</p>

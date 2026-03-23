@@ -5,3 +5,4 @@ venv
 /logs/*
 CLAUDE_NOTES.md
 __pycache__
+.claude/

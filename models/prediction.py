@@ -69,6 +69,10 @@ class Prediction:
     weather_over_adj: float = 0.0
     weather_under_adj: float = 0.0
 
+    # Bullpen / pitching depth scores (0–100 per team, team aggregate pitching proxy)
+    away_bullpen_score: float = 50.0
+    home_bullpen_score: float = 50.0
+
     # Gate flags
     sp_gate_blocked: bool = False
 
@@ -121,6 +125,9 @@ class Prediction:
             "away_pitcher_score": round(self.away_pitcher_score, 1),
             "home_pitcher_name": self.home_pitcher_name,
             "home_pitcher_score": round(self.home_pitcher_score, 1),
+            # Bullpen
+            "away_bullpen_score": round(self.away_bullpen_score, 1),
+            "home_bullpen_score": round(self.home_bullpen_score, 1),
             # Injuries / weather
             "away_injury_impact": round(self.away_injury_impact, 2),
             "home_injury_impact": round(self.home_injury_impact, 2),

@@ -141,6 +141,52 @@ class ProbabilityEngine:
         return result_away, result_home
 
     @staticmethod
+    def apply_bullpen_adjustment(
+        away_prob: float,
+        home_prob: float,
+        away_bullpen_score: float,
+        home_bullpen_score: float,
+    ) -> Tuple[float, float]:
+        """
+        Shift probabilities based on team pitching depth differential.
+
+        Bullpen handles ~40% of innings; starters get ±10pp for ~60% of innings.
+        Proportional scale: max ±4pp for bullpen (10 × 40/60 ≈ 6.67, capped lower
+        to reflect pre-game uncertainty about reliever usage patterns).
+
+        With both teams at 50 (spring training / no data): no adjustment.
+        With real season stats: a 20-point quality gap → ~1.6pp probability shift.
+        """
+        edge = away_bullpen_score - home_bullpen_score  # -100 to +100
+        prob_shift = (edge / 50.0) * 2.0               # max ±4pp at 100-point edge
+
+        new_away = away_prob + prob_shift
+        new_home = home_prob - prob_shift
+
+        total = new_away + new_home
+        if total <= 0:
+            logger.warning("apply_bullpen_adjustment: total prob <= 0 — returning 50/50")
+            return 50.0, 50.0
+
+        result_away = round(new_away / total * 100, 4)
+        result_home = round(new_home / total * 100, 4)
+
+        if prob_shift != 0:
+            logger.debug(
+                "apply_bullpen_adjustment: away_score=%.1f  home_score=%.1f  "
+                "edge=%+.1f  prob_shift=%+.2f%%  "
+                "before=%.4f%%/%.4f%%  after=%.4f%%/%.4f%%",
+                away_bullpen_score, home_bullpen_score, edge, prob_shift,
+                away_prob, home_prob, result_away, result_home,
+            )
+        else:
+            logger.debug(
+                "apply_bullpen_adjustment: both teams at %.1f/%.1f — no shift",
+                away_bullpen_score, home_bullpen_score,
+            )
+        return result_away, result_home
+
+    @staticmethod
     def best_side(
         away_prob: float,
         home_prob: float,

@@ -50,7 +50,7 @@ function renderModel() {
 
   const tbody = document.getElementById('model-tbody');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="24"><div class="empty-state"><div class="empty-icon">⚾</div><p>No games found. Run a refresh first.</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="26"><div class="empty-state"><div class="empty-icon">⚾</div><p>No games found. Run a refresh first.</p></div></td></tr>';
     return;
   }
 
@@ -71,6 +71,14 @@ function renderModel() {
     // Pitcher columns: "Name (score)" — single line, no wrapping
     const awaySP = `${p.away_pitcher_name || 'TBD'} <span style="color:var(--text-muted)">(${Math.round(p.away_pitcher_score || 50)})</span>`;
     const homeSP = `${p.home_pitcher_name || 'TBD'} <span style="color:var(--text-muted)">(${Math.round(p.home_pitcher_score || 50)})</span>`;
+
+    // Bullpen depth columns (0–100 score; 50 = neutral/pre-season)
+    const awayBPVal = Math.round(p.away_bullpen_score ?? 50);
+    const homeBPVal = Math.round(p.home_bullpen_score ?? 50);
+    const awayBPColor = awayBPVal > 55 ? 'pos' : awayBPVal < 45 ? 'neg' : '';
+    const homeBPColor = homeBPVal > 55 ? 'pos' : homeBPVal < 45 ? 'neg' : '';
+    const awayBP = `<span class="mono ${awayBPColor}">${awayBPVal}</span>`;
+    const homeBP = `<span class="mono ${homeBPColor}">${homeBPVal}</span>`;
 
     // Injury impact (show as signed delta)
     const awayInj = p.away_injury_impact != null
@@ -112,6 +120,8 @@ function renderModel() {
       <td style="white-space:nowrap">${p.matchup || '—'}</td>
       <td style="font-size:11px;white-space:nowrap">${awaySP}</td>
       <td style="font-size:11px;white-space:nowrap">${homeSP}</td>
+      <td>${awayBP}</td>
+      <td>${homeBP}</td>
       <td class="mono">${awayML}</td>
       <td class="mono">${homeML}</td>
       <td class="mono">${awaySpread}</td>
@@ -152,6 +162,7 @@ function exportCSV() {
   const cols = [
     'game_date','matchup','away_pitcher_name','away_pitcher_score',
     'home_pitcher_name','home_pitcher_score',
+    'away_bullpen_score','home_bullpen_score',
     'away_ml','home_ml','away_spread','home_spread','total_line',
     'away_prob_pct','home_prob_pct','away_ev_pct','home_ev_pct',
     'confidence_pct','status','safe_units',

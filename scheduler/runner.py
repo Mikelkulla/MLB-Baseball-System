@@ -36,6 +36,7 @@ class MLBScheduler:
             "weather_min": 120,
             "dk_splits_min": 60,
             "pitchers_min": 30,
+            "bullpens_min": 60,
             "live_predictions_min": 5,
         },
         "active": {
@@ -44,6 +45,7 @@ class MLBScheduler:
             "weather_min": 180,
             "dk_splits_min": 90,
             "pitchers_min": 45,
+            "bullpens_min": 90,
             "live_predictions_min": 5,
         },
         "low_activity": {
@@ -52,6 +54,7 @@ class MLBScheduler:
             "weather_min": 480,
             "dk_splits_min": 240,
             "pitchers_min": 120,
+            "bullpens_min": 240,
             "live_predictions_min": 30,
         },
     }
@@ -67,13 +70,14 @@ class MLBScheduler:
         logger.info(
             "Scheduler starting with preset='%s' — intervals: "
             "odds=%dmin  injuries=%dmin  weather=%dmin  "
-            "dk_splits=%dmin  pitchers=%dmin  predictions=%dmin",
+            "dk_splits=%dmin  pitchers=%dmin  bullpens=%dmin  predictions=%dmin",
             preset,
             intervals["odds_min"],
             intervals["injuries_min"],
             intervals["weather_min"],
             intervals["dk_splits_min"],
             intervals["pitchers_min"],
+            intervals["bullpens_min"],
             intervals["live_predictions_min"],
         )
         self._add_jobs(intervals)
@@ -107,6 +111,7 @@ class MLBScheduler:
             "weather_min": cfg.weather_min,
             "dk_splits_min": cfg.dk_splits_min,
             "pitchers_min": cfg.pitchers_min,
+            "bullpens_min": cfg.bullpens_min,
             "live_predictions_min": cfg.live_predictions_min,
         }
 
@@ -147,13 +152,17 @@ class MLBScheduler:
         sched.add_job(_wrap(pipe.refresh_pitchers,        "pitchers"),
                       IntervalTrigger(minutes=intervals["pitchers_min"]),
                       id="pitchers",    replace_existing=True)
+        sched.add_job(_wrap(pipe.refresh_bullpens,        "bullpens"),
+                      IntervalTrigger(minutes=intervals["bullpens_min"]),
+                      id="bullpens",    replace_existing=True)
         sched.add_job(_wrap(pipe.update_live_predictions, "predictions"),
                       IntervalTrigger(minutes=intervals["live_predictions_min"]),
                       id="predictions", replace_existing=True)
 
         logger.debug(
             "Scheduler jobs registered: odds(%dmin) injuries(%dmin) weather(%dmin) "
-            "dk_splits(%dmin) pitchers(%dmin) predictions(%dmin)",
+            "dk_splits(%dmin) pitchers(%dmin) bullpens(%dmin) predictions(%dmin)",
             intervals["odds_min"], intervals["injuries_min"], intervals["weather_min"],
-            intervals["dk_splits_min"], intervals["pitchers_min"], intervals["live_predictions_min"],
+            intervals["dk_splits_min"], intervals["pitchers_min"], intervals["bullpens_min"],
+            intervals["live_predictions_min"],
         )

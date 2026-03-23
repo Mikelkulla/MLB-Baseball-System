@@ -88,6 +88,11 @@ class Game:
     away_pitcher_name: str = "TBD"
     home_pitcher_name: str = "TBD"
 
+    # Bullpen / pitching depth scores (0–100 per team, team aggregate pitching proxy)
+    # Default 50.0 = neutral; below 10 games played returns 50 (spring training gate)
+    away_bullpen_score: float = 50.0
+    home_bullpen_score: float = 50.0
+
     # Weather snapshot
     temperature_f: Optional[float] = None
     wind_speed_mph: Optional[float] = None

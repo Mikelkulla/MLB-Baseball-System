@@ -147,6 +147,23 @@ class PredictionEngine:
             away_prob, home_prob,
         )
 
+        # --- 3c. Bullpen probability adjustment ---
+        pre_bull_away, pre_bull_home = away_prob, home_prob
+        away_prob, home_prob = self._prob.apply_bullpen_adjustment(
+            away_prob, home_prob,
+            game.away_bullpen_score,
+            game.home_bullpen_score,
+        )
+        bullpen_edge = game.away_bullpen_score - game.home_bullpen_score
+        logger.debug(
+            "[%s] Bullpen adj — Away BP: %.0f/100  Home BP: %.0f/100  "
+            "Edge: %+.1f  Prob shift: %+.2f%%  After: Away %.2f%% Home %.2f%%",
+            matchup_label,
+            game.away_bullpen_score, game.home_bullpen_score,
+            bullpen_edge, away_prob - pre_bull_away,
+            away_prob, home_prob,
+        )
+
         # --- 4. EV for BOTH sides ---
         # V8.0: EV uses the same prices as probability (spread when available, ML fallback).
         # Spread = best price across all books (already collected in odds_client).
@@ -413,6 +430,8 @@ class PredictionEngine:
             away_pitcher_score=game.away_pitcher_score,
             home_pitcher_name=game.home_pitcher_name,
             home_pitcher_score=game.home_pitcher_score,
+            away_bullpen_score=game.away_bullpen_score,
+            home_bullpen_score=game.home_bullpen_score,
             away_injury_impact=game.away_injury_impact,
             home_injury_impact=game.home_injury_impact,
             weather_over_adj=game.weather_over_adj,

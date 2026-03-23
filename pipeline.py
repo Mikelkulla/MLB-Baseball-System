@@ -19,10 +19,12 @@ from data.injury_scraper import InjuryScraper, RawInjury
 from data.weather_client import WeatherClient
 from data.draftking_scraper import DraftKingsScraper, SplitEntry
 from data.pitcher_client import PitcherClient
+from data.bullpen_client import BullpenClient
 
 from engine.injury_impact import InjuryImpactEngine, InjuredPlayer
 from engine.weather_impact import WeatherImpactEngine
 from engine.pitcher_impact import PitcherImpactEngine
+from engine.bullpen_impact import BullpenImpactEngine
 from engine.prediction_engine import PredictionEngine
 
 from output.predictions import LivePredictions
@@ -32,6 +34,7 @@ from output.bet_logger import BetLogger
 from models.game import Game
 from models.prediction import Prediction
 from models.pitcher import PitcherStats
+from models.bullpen import BullpenStats
 
 from db.raw_store import RawStore
 
@@ -53,11 +56,13 @@ class MLBPipeline:
         self._weather_client = WeatherClient()
         self._dk_scraper = DraftKingsScraper()
         self._pitcher_client = PitcherClient()
+        self._bullpen_client = BullpenClient()
 
         # Engines
         self._injury_engine = InjuryImpactEngine()
         self._weather_engine = WeatherImpactEngine()
         self._pitcher_engine = PitcherImpactEngine()
+        self._bullpen_engine = BullpenImpactEngine()
         self._prediction_engine = PredictionEngine()
 
         # Output
@@ -75,6 +80,7 @@ class MLBPipeline:
         self._weather: dict = {}
         self._splits: list[SplitEntry] = []
         self._pitchers: dict[str, PitcherStats] = {}
+        self._bullpens: dict[str, BullpenStats] = {}
 
         logger.debug("MLBPipeline initialised — all clients and engines ready")
 
@@ -281,6 +287,46 @@ class MLBPipeline:
             self._schedule_log.log("refresh_pitchers", "FAIL", str(exc), ms)
             logger.error("Pitcher refresh failed after %dms: %s", ms, exc, exc_info=True)
 
+    def refresh_bullpens(self) -> None:
+        logger.info("Phase 1 — Fetching team pitching stats (bullpen depth) from MLB Stats API...")
+        self._feed_health.set_status("Bullpens", FeedStatus.RUNNING)
+        refresh_id = datetime.utcnow().isoformat()
+        t0 = time.time()
+        try:
+            bullpens = self._bullpen_client.fetch_team_pitching()
+            logger.info("MLB API returned pitching stats for %d teams", len(bullpens))
+
+            # Score each team's pitching depth
+            for team_key, bullpen in bullpens.items():
+                self._bullpen_engine.score_and_attach(bullpen)
+
+            self._bullpens = bullpens
+            ms = int((time.time() - t0) * 1000)
+
+            scored_count = sum(1 for b in bullpens.values() if b.games >= 10)
+            logger.info(
+                "Bullpen stats fetched and scored: %d teams in %dms  (scored: %d  neutral/pre-season: %d)",
+                len(bullpens), ms, scored_count, len(bullpens) - scored_count,
+            )
+            for team_key, b in bullpens.items():
+                logger.debug(
+                    "  Bullpen [%s]: score=%.1f/100  ERA=%s  FIP=%s  K/9=%s  BB/9=%s  games=%d",
+                    team_key, b.impact_score,
+                    f"{b.era:.2f}" if b.era is not None else "N/A",
+                    f"{b.fip:.2f}" if b.fip is not None else "N/A",
+                    f"{b.k_per_9:.1f}" if b.k_per_9 is not None else "N/A",
+                    f"{b.bb_per_9:.1f}" if b.bb_per_9 is not None else "N/A",
+                    b.games,
+                )
+
+            self._feed_health.set_status("Bullpens", FeedStatus.OK, f"{len(bullpens)} teams", record_count=len(bullpens))
+            self._schedule_log.log("refresh_bullpens", "OK", f"{len(bullpens)} teams", ms)
+        except Exception as exc:
+            ms = int((time.time() - t0) * 1000)
+            self._feed_health.set_status("Bullpens", FeedStatus.FAIL, str(exc))
+            self._schedule_log.log("refresh_bullpens", "FAIL", str(exc), ms)
+            logger.error("Bullpen refresh failed after %dms: %s", ms, exc, exc_info=True)
+
     # ------------------------------------------------------------------
     # Phase 1B — Apply impacts to game objects
     # ------------------------------------------------------------------
@@ -289,9 +335,9 @@ class MLBPipeline:
         """Annotate each Game with computed impact values."""
         logger.info(
             "Phase 1B — Applying impacts to %d games  "
-            "(injuries=%d  weather=%d stadiums  splits=%d  pitchers=%d)",
+            "(injuries=%d  weather=%d stadiums  splits=%d  pitchers=%d  bullpens=%d)",
             len(self._games), len(self._injuries),
-            len(self._weather), len(self._splits), len(self._pitchers),
+            len(self._weather), len(self._splits), len(self._pitchers), len(self._bullpens),
         )
 
         # Build injury lookup by team_key
@@ -418,6 +464,32 @@ class MLBPipeline:
                     matchup_label, game.home_team,
                 )
 
+            # --- Bullpen / Pitching Depth ---
+            away_bullpen = self._bullpens.get(game.away_team)
+            home_bullpen = self._bullpens.get(game.home_team)
+            if away_bullpen:
+                game.away_bullpen_score = away_bullpen.impact_score
+                logger.debug(
+                    "[%s] Away bullpen: score=%.1f/100  (games=%d)",
+                    matchup_label, away_bullpen.impact_score, away_bullpen.games,
+                )
+            else:
+                logger.debug(
+                    "[%s] Away bullpen: NOT FOUND for '%s' — using neutral 50",
+                    matchup_label, game.away_team,
+                )
+            if home_bullpen:
+                game.home_bullpen_score = home_bullpen.impact_score
+                logger.debug(
+                    "[%s] Home bullpen: score=%.1f/100  (games=%d)",
+                    matchup_label, home_bullpen.impact_score, home_bullpen.games,
+                )
+            else:
+                logger.debug(
+                    "[%s] Home bullpen: NOT FOUND for '%s' — using neutral 50",
+                    matchup_label, game.home_team,
+                )
+
             # --- Sharp Splits ---
             split = split_lookup.get((game.away_team, game.home_team))
             if split:
@@ -514,6 +586,7 @@ class MLBPipeline:
         self._run_weather(refresh_id)
         self._run_dk_splits(refresh_id)
         self._run_pitchers(refresh_id)
+        self._run_bullpens(refresh_id)
         predictions = self.update_live_predictions(raw_refresh_id=refresh_id)
         self._live_predictions.print_summary()
         self._feed_health.print_summary()
@@ -647,3 +720,26 @@ class MLBPipeline:
             self._feed_health.set_status("Pitchers", FeedStatus.FAIL, str(exc))
             self._schedule_log.log("refresh_pitchers", "FAIL", str(exc), ms)
             logger.error("Pitcher refresh failed after %dms: %s", ms, exc, exc_info=True)
+
+    def _run_bullpens(self, refresh_id: str) -> None:
+        self._feed_health.set_status("Bullpens", FeedStatus.RUNNING)
+        t0 = time.time()
+        try:
+            bullpens = self._bullpen_client.fetch_team_pitching()
+            logger.info("MLB API returned team pitching stats for %d teams", len(bullpens))
+            for team_key, bullpen in bullpens.items():
+                self._bullpen_engine.score_and_attach(bullpen)
+            self._bullpens = bullpens
+            ms = int((time.time() - t0) * 1000)
+            scored_count = sum(1 for b in bullpens.values() if b.games >= 10)
+            logger.info(
+                "Bullpen stats fetched and scored: %d teams in %dms  (scored:%d neutral:%d)",
+                len(bullpens), ms, scored_count, len(bullpens) - scored_count,
+            )
+            self._feed_health.set_status("Bullpens", FeedStatus.OK, f"{len(bullpens)} teams", record_count=len(bullpens))
+            self._schedule_log.log("refresh_bullpens", "OK", f"{len(bullpens)} teams", ms)
+        except Exception as exc:
+            ms = int((time.time() - t0) * 1000)
+            self._feed_health.set_status("Bullpens", FeedStatus.FAIL, str(exc))
+            self._schedule_log.log("refresh_bullpens", "FAIL", str(exc), ms)
+            logger.error("Bullpen refresh failed after %dms: %s", ms, exc, exc_info=True)

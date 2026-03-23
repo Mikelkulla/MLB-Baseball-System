@@ -141,6 +141,50 @@ class PitcherScoringConfig:
 PITCHER_SCORING = PitcherScoringConfig()
 
 # ---------------------------------------------------------------------------
+# Bullpen / Team Pitching Depth Scoring (0–100 scale)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class BullpenScoringConfig:
+    """
+    Weights and league baselines for the team pitching depth score (0–100).
+
+    Uses team aggregate pitching stats as a proxy for bullpen quality.
+    The probable starter is scored separately (PitcherScoringConfig).
+    Together they give a fuller picture of each team's total pitching advantage.
+
+    Formula:
+        score = fip_weight × score_fip(fip)
+              + k9_weight  × score_k9(k_per_9)
+              + bb9_weight × score_bb9(bb_per_9)
+
+    Weight rationale:
+      FIP  0.45 — best single fielding-independent predictor; dominant at team level
+      K/9  0.30 — strikeout rate; most durable and transferable skill across a staff
+      BB/9 0.25 — walk control; highly consistent year-to-year for pitching staffs
+
+    ERA and HR/9 excluded:
+      ERA  — contaminated by defense (same logic as starter scoring)
+      HR/9 — noisy at team level; park-factor-dependent, small game sample variance
+
+    League averages (MLB 2020-2024 rolling, same baselines as pitcher scoring):
+      FIP:  4.20
+      K/9:  8.80
+      BB/9: 3.10
+
+    Sample gate: teams with < 10 games return 50.0 (neutral) to avoid
+    spring training / early-season noise.
+    """
+    fip_weight:  float = 0.45
+    k9_weight:   float = 0.30
+    bb9_weight:  float = 0.25
+
+    league_avg_fip:  float = 4.20
+    league_avg_k9:   float = 8.80
+    league_avg_bb9:  float = 3.10
+
+BULLPEN_SCORING = BullpenScoringConfig()
+
+# ---------------------------------------------------------------------------
 # Automation intervals (minutes)
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -151,6 +195,7 @@ class SchedulerConfig:
     weather_min: int = 240
     dk_splits_min: int = 180
     pitchers_min: int = 60
+    bullpens_min: int = 120    # team pitching stats change slowly — refresh every 2 hours
     live_predictions_min: int = 10
 
 SCHEDULER_CONFIG = SchedulerConfig()
