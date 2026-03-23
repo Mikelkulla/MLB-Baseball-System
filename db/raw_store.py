@@ -325,9 +325,15 @@ class RawStore:
                 p.whip,
                 p.k_per_9,
                 p.bb_per_9,
+                p.hr_per_9,
                 p.innings_pitched,
                 p.wins,
                 p.losses,
+                p.home_runs,
+                p.walks,
+                p.hit_batsmen,
+                p.strikeouts,
+                p.fip,
                 p.recent_era,
                 p.impact_score,
                 now,
@@ -341,11 +347,12 @@ class RawStore:
                         refresh_id, team_key,
                         pitcher_name, pitcher_id,
                         hand, is_tbd,
-                        era, whip, k_per_9, bb_per_9,
+                        era, whip, k_per_9, bb_per_9, hr_per_9,
                         innings_pitched, wins, losses,
-                        recent_era, impact_score,
+                        home_runs, walks, hit_batsmen, strikeouts,
+                        fip, recent_era, impact_score,
                         recorded_at
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     rows,
                 )

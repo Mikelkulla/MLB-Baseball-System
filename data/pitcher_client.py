@@ -79,9 +79,15 @@ class PitcherClient:
                             whip=stats.get("whip"),
                             k_per_9=stats.get("k_per_9"),
                             bb_per_9=stats.get("bb_per_9"),
+                            hr_per_9=stats.get("hr_per_9"),
                             innings_pitched=stats.get("innings_pitched"),
                             wins=stats.get("wins", 0),
                             losses=stats.get("losses", 0),
+                            home_runs=stats.get("home_runs"),
+                            walks=stats.get("walks"),
+                            hit_batsmen=stats.get("hit_batsmen"),
+                            strikeouts=stats.get("strikeouts"),
+                            fip=stats.get("fip"),
                             recent_era=stats.get("recent_era"),
                         )
                     else:
@@ -146,21 +152,60 @@ class PitcherClient:
 
     @staticmethod
     def _extract_stat_line(data: dict) -> dict:
-        """Pull ERA, WHIP, K/9, BB/9 from MLB Stats API response."""
-        # Use `or` guard: if stats key exists but is [], fall back to [{}]
+        """
+        Pull pitching stats from MLB Stats API season response.
+
+        FIP is calculated here from raw counting stats:
+            FIP = ((13×HR) + (3×(BB+HBP)) - (2×K)) / IP + FIP_constant
+        FIP_constant = 3.17  (5-year rolling average 2020-2024, source: FanGraphs GUTS)
+        This puts FIP on the same scale as ERA by construction.
+
+        ERA and WHIP are still returned for display purposes but are NOT used
+        in the impact score — they are contaminated by the defense behind the pitcher.
+        """
+        FIP_CONSTANT = 3.17   # FanGraphs GUTS table 2020-2024 average
+        MIN_IP_FOR_FIP = 5.0  # Do not calculate FIP below 5 IP — too noisy
+
         stats_list = data.get("stats") or [{}]
         splits = stats_list[0].get("splits", [])
         if not splits:
             return {}
         stat = splits[0].get("stat", {})
         ip = PitcherClient._ip_to_float(stat.get("inningsPitched", "0.0"))
+
+        # Raw counting stats needed for FIP
+        hr  = int(stat.get("homeRuns", 0) or 0)
+        bb  = int(stat.get("baseOnBalls", 0) or 0)
+        hbp = int(stat.get("hitBatsmen", 0) or 0)
+        k   = int(stat.get("strikeOuts", 0) or 0)
+
+        # Calculate FIP — only when enough innings to be meaningful
+        fip = None
+        if ip >= MIN_IP_FOR_FIP:
+            fip_raw = ((13 * hr) + (3 * (bb + hbp)) - (2 * k)) / ip
+            fip = round(fip_raw + FIP_CONSTANT, 2)
+
+        # HR/9 rate — direct from API (homeRunsPer9 field)
+        hr_per_9_raw = stat.get("homeRunsPer9")
+        hr_per_9 = float(hr_per_9_raw) if hr_per_9_raw else None
+
         return {
-            "era": float(stat["era"]) if stat.get("era") and stat["era"] != "-.--" else None,
-            "whip": float(stat["whip"]) if stat.get("whip") and stat["whip"] != "-.--" else None,
-            "k_per_9": float(stat["strikeoutsPer9Inn"]) if stat.get("strikeoutsPer9Inn") else None,
-            "bb_per_9": float(stat["walksPer9Inn"]) if stat.get("walksPer9Inn") else None,
+            # Display stats (not used in scoring)
+            "era":   float(stat["era"])  if stat.get("era")  and stat["era"]  != "-.--" else None,
+            "whip":  float(stat["whip"]) if stat.get("whip") and stat["whip"] != "-.--" else None,
+            # Scoring stats (fielding independent)
+            "k_per_9":    float(stat["strikeoutsPer9Inn"]) if stat.get("strikeoutsPer9Inn") else None,
+            "bb_per_9":   float(stat["walksPer9Inn"])      if stat.get("walksPer9Inn")      else None,
+            "hr_per_9":   hr_per_9,
+            "fip":        fip,
+            # Raw counts (stored in DB for auditability)
+            "home_runs":  hr  if ip > 0 else None,
+            "walks":      bb  if ip > 0 else None,
+            "hit_batsmen":hbp if ip > 0 else None,
+            "strikeouts": k   if ip > 0 else None,
+            # Other
             "innings_pitched": ip,
-            "wins": int(stat.get("wins", 0)),
+            "wins":   int(stat.get("wins", 0)),
             "losses": int(stat.get("losses", 0)),
         }
 

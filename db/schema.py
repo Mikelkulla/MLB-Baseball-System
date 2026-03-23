@@ -344,14 +344,24 @@ CREATE TABLE IF NOT EXISTS raw_pitchers (
     hand             TEXT    NOT NULL DEFAULT '',    -- R or L
     is_tbd           INTEGER NOT NULL DEFAULT 1,     -- 1 = starter not yet announced
     -- Season stats (NULL when is_tbd=1 or no stats yet)
+    -- ERA and WHIP stored for display only — NOT used in impact scoring
     era              REAL,
     whip             REAL,
     k_per_9          REAL,
     bb_per_9         REAL,
+    hr_per_9         REAL,                           -- HR/9 rate (homeRunsPer9 from API)
     innings_pitched  REAL,
     wins             INTEGER,
     losses           INTEGER,
-    recent_era       REAL,                           -- last 3 starts ERA
+    -- Raw counts used for FIP calculation
+    home_runs        INTEGER,
+    walks            INTEGER,
+    hit_batsmen      INTEGER,
+    strikeouts       INTEGER,
+    -- FIP: ((13×HR)+(3×(BB+HBP))-(2×K))/IP + 3.17
+    -- Fielding-independent ERA substitute — primary scoring metric
+    fip              REAL,
+    recent_era       REAL,                           -- last 3 starts ERA (form signal)
     -- Computed
     impact_score     REAL    NOT NULL DEFAULT 50.0,  -- 0-100 (50 = league average)
     recorded_at      TEXT    NOT NULL DEFAULT ''
@@ -370,10 +380,55 @@ def init_db() -> None:
     Safe to call on every startup — IF NOT EXISTS guards every statement.
     Uses a direct sqlite3 connection (bypass the write_db context manager)
     because executescript issues its own implicit transaction.
+    Also runs _migrate() to add any new columns to existing tables.
     """
     DB_PATH.parent.mkdir(exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     try:
         conn.executescript(_DDL)
+        _migrate(conn)
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """
+    Add new columns to existing tables when upgrading an existing database.
+    Uses ALTER TABLE ADD COLUMN which is a no-op if the column already exists
+    in SQLite — but SQLite raises an error for duplicate columns, so we check
+    existing columns first and only ALTER when the column is absent.
+
+    Add new migrations at the bottom of this list.  Never remove old ones.
+    """
+    migrations: list[tuple[str, str, str]] = [
+        # (table, column_name, column_definition)
+        # raw_pitchers — FIP and supporting columns added 2026-03
+        ("raw_pitchers", "hr_per_9",     "REAL"),
+        ("raw_pitchers", "home_runs",     "INTEGER"),
+        ("raw_pitchers", "walks",         "INTEGER"),
+        ("raw_pitchers", "hit_batsmen",   "INTEGER"),
+        ("raw_pitchers", "strikeouts",    "INTEGER"),
+        ("raw_pitchers", "fip",           "REAL"),
+        # raw_odds — spread and total bookmaker tracking added 2026-03
+        # (columns already in schema DDL; listed here for existing DBs created before that)
+        ("raw_odds", "spread_bookmaker",  "TEXT NOT NULL DEFAULT ''"),
+        ("raw_odds", "total_bookmaker",   "TEXT NOT NULL DEFAULT ''"),
+    ]
+
+    for table, column, definition in migrations:
+        # Check whether the column already exists
+        existing = {
+            row[1]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in existing:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                conn.commit()
+            except Exception as exc:
+                # Should never happen given the check above, but log just in case
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Migration: ALTER TABLE %s ADD COLUMN %s failed: %s",
+                    table, column, exc,
+                )
