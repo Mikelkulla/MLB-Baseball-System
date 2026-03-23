@@ -1,0 +1,7 @@
+/output_data/*
+*/__pycache__/
+venv
+.env
+/logs/*
+CLAUDE_NOTES.md
+__pycache__

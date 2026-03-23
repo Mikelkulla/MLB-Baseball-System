@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}MLB Model{% endblock %}
+{% block topbar_title %}MLB Model{% endblock %}
+
+{% block head %}
+<style>
+/* Column header tooltips */
+#model-table thead th[title] {
+  position: relative;
+  cursor: help;
+}
+#model-table thead th[title]::after {
+  content: attr(title);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c2333;
+  color: #cdd9e5;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: normal;
+  width: 240px;
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  /* keep inside viewport for leftmost/rightmost columns */
+  max-width: 260px;
+}
+#model-table thead th[title]:hover::after {
+  opacity: 1;
+}
+/* Shift tooltip left for the last few columns so it doesn't clip off-screen */
+#model-table thead th[title]:nth-last-child(-n+4)::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+/* Shift tooltip right for the first two columns */
+#model-table thead th[title]:nth-child(-n+2)::after {
+  left: 0;
+  transform: none;
+}
+/* Sortable headers keep the pointer cursor */
+#model-table thead th[onclick] {
+  cursor: pointer;
+}
+#model-table thead th[onclick][title] {
+  cursor: pointer;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <!-- Tier filter tabs (includes PASS + All) -->
+    <div class="filter-tabs" id="tier-filter">
+      <button class="filter-tab active" data-tier="">All Games</button>
+      <button class="filter-tab" data-tier="ELITE"     style="color:var(--tier-elite)">Elite</button>
+      <button class="filter-tab" data-tier="STRONGEST" style="color:var(--tier-strongest)">Strongest</button>
+      <button class="filter-tab" data-tier="BEST BET"  style="color:var(--tier-best-bet)">Best Bet</button>
+      <button class="filter-tab" data-tier="GOLD"        style="color:var(--tier-gold)">Gold</button>
+      <button class="filter-tab" data-tier="ACTION ONLY" style="color:#9ca3af">Action Only</button>
+      <button class="filter-tab" data-tier="PASS"        style="color:var(--text-muted)">Pass</button>
+    </div>
+    <input type="text" class="input" id="search-box"
+           placeholder="Search matchup…"
+           style="width:180px;margin-left:12px;padding:4px 8px;font-size:12px"
+           oninput="onSearch(this.value)">
+    <span style="margin-left:auto;font-size:12px;color:var(--text-muted)" id="model-count"></span>
+    <span class="refresh-badge" style="margin-left:12px">Refreshes in <span class="refresh-countdown" id="countdown">60</span>s</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadModel()">↻ Refresh</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ CSV</button>
+  </div>
+
+  <!-- Horizontally scrollable table — mirrors V8.0 NBA_Model sheet columns -->
+  <div style="overflow-x:auto">
+    <table id="model-table" class="table-compact" style="min-width:1600px">
+      <thead>
+        <tr>
+          <th onclick="sortTable('game_date')"      title="Game date (local time)">Date</th>
+          <th onclick="sortTable('matchup')"        title="Away team @ Home team">Matchup</th>
+          <th title="Away starting pitcher and their impact score (0–100). 50 = league average. Higher = better pitcher. TBD means the team hasn't announced their starter yet.">Away SP</th>
+          <th title="Home starting pitcher and their impact score (0–100). 50 = league average. Higher = better pitcher. TBD means the team hasn't announced their starter yet.">Home SP</th>
+          <th title="Away team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Away ML</th>
+          <th title="Home team moneyline odds (American format). Negative = favourite, positive = underdog. Source: DraftKings.">Home ML</th>
+          <th title="Away team run line (always ±1.5 in MLB) and price. Source: DraftKings.">Away Spread</th>
+          <th title="Home team run line (always ±1.5 in MLB) and price. Source: DraftKings.">Home Spread</th>
+          <th title="Over/Under total runs line and price. Source: DraftKings.">O/U</th>
+          <th onclick="sortTable('away_prob_pct')"  title="Away team win probability after vig removal, pitcher adjustment, and injury adjustment. Both sides always sum to 100%.">Away Prob%</th>
+          <th onclick="sortTable('home_prob_pct')"  title="Home team win probability after vig removal, pitcher adjustment, and injury adjustment. Both sides always sum to 100%.">Home Prob%</th>
+          <th onclick="sortTable('away_ev_pct')"    title="Away team Expected Value %. Positive = profitable edge over the long run. Calculated as: (prob × decimal_win) − (1−prob). — means line is outside the ±400 gate.">Away EV%</th>
+          <th onclick="sortTable('home_ev_pct')"    title="Home team Expected Value %. Positive = profitable edge over the long run. Calculated as: (prob × decimal_win) − (1−prob). — means line is outside the ±400 gate.">Home EV%</th>
+          <th onclick="sortTable('confidence_pct')" title="Model confidence in the pick (0–100%). Blend of EV strength (50%) and sharp money signal (50%). Drives tier assignment.">Conf%</th>
+          <th onclick="sortTable('status')"         title="Tier: ELITE ≥85% · STRONGEST ≥75% · BEST BET ≥68% · GOLD ≥55% · PASS = below threshold or negative EV.">Status</th>
+          <th onclick="sortTable('safe_units')"     title="Recommended bet size in units. ELITE=3u · STRONGEST=2.5u · BEST BET=1.75u · GOLD=1u · PASS=0u. Reduced to 0 if SP gate is blocked.">Units</th>
+          <th onclick="sortTable('clv_delta')"      title="Closing Line Value delta. Difference between the opening spread and the current spread. Positive = line moved in our favour (sharp action on our side). Negative = line moved against us.">CLV Δ</th>
+          <th onclick="sortTable('sharp_split_score')" title="Sharp Split Score (0–100). Max gap between Bets% and Handle% on DraftKings across run line + totals markets. High score = sharp money diverging from public bets.">SSS</th>
+          <th title="Away team injury impact on win probability (percentage points). Calculated from Out/Doubtful players on Covers.com — starters and key hitters weighted higher.">Away Inj</th>
+          <th title="Home team injury impact on win probability (percentage points). Calculated from Out/Doubtful players on Covers.com — starters and key hitters weighted higher.">Home Inj</th>
+          <th title="Weather Over/Under adjustment. Wind blowing out = positive (more runs expected). Wind blowing in or cold temps = negative. 0 for dome stadiums.">W O/U adj</th>
+          <th title="Starting Pitcher Gate. BLOCKED means the probable SP is listed as Out or Doubtful on the injury report — bet is forced to 0 units regardless of confidence.">SP Gate</th>
+          <th title="The side the model picked (Away or Home team name). Always the side with the higher Expected Value.">Pick</th>
+          <th title="Human-readable summary of the prediction including tier, confidence, EV, and key factors.">Prediction</th>
+        </tr>
+      </thead>
+      <tbody id="model-tbody">
+        <tr>
+          <td colspan="24">
+            <div class="empty-state">
+              <div class="empty-icon">⚾</div>
+              <p>Loading…</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/model.js"></script>
+{% endblock %}

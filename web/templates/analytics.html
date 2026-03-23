@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block topbar_title %}Analytics{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="cards" id="analytics-cards">
+  <div class="card"><div class="card-label">All-Time P&L</div><div class="card-value" id="an-pnl">—</div><div class="card-sub">units</div></div>
+  <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="an-wr">—</div><div class="card-sub" id="an-record">—</div></div>
+  <div class="card"><div class="card-label">Avg EV%</div><div class="card-value blue" id="an-ev">—</div><div class="card-sub">on placed bets</div></div>
+  <div class="card"><div class="card-label">Avg Conf%</div><div class="card-value amber" id="an-conf">—</div></div>
+  <div class="card"><div class="card-label">Best Tier</div><div class="card-value gold" id="an-best-tier">—</div><div class="card-sub" id="an-best-tier-wr">—</div></div>
+</div>
+
+<!-- P&L chart -->
+<div class="chart-wrap">
+  <div class="chart-title">Cumulative P&L (units)</div>
+  <canvas id="pnl-chart" height="80"></canvas>
+</div>
+
+<!-- Win rate by tier -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+  <div class="chart-wrap">
+    <div class="chart-title">Win Rate by Tier</div>
+    <canvas id="tier-chart" height="160"></canvas>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-title">P&L by Tier</div>
+    <canvas id="tier-pnl-chart" height="160"></canvas>
+  </div>
+</div>
+
+<!-- Recent form -->
+<div class="section-header"><span class="section-title">Last 10 Bets</span></div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Matchup</th><th>Pick</th><th>Tier</th><th>Odds</th><th>Units</th><th>Result</th><th>P&L</th></tr>
+    </thead>
+    <tbody id="recent-tbody">
+      <tr><td colspan="8"><div class="empty-state"><p>No bets yet.</p></div></td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/analytics.js"></script>
+{% endblock %}

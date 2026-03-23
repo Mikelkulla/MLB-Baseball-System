@@ -1,0 +1,121 @@
+"""
+Global system configuration — API keys, thresholds, betting config.
+All environment-sensitive values should be overridden via .env file.
+"""
+
+from __future__ import annotations
+import os
+from dataclasses import dataclass, field
+from typing import Dict
+
+# ---------------------------------------------------------------------------
+# API Keys (override via environment variables or .env)
+# ---------------------------------------------------------------------------
+ODDS_API_KEY: str = os.getenv("ODDS_API_KEY", "8a87f7cfbd471d3d8b756654ac07b368")
+WEATHER_API_KEY: str = os.getenv("WEATHER_API_KEY", "b25d44ec6abc4f41b11142954252611")
+
+# ---------------------------------------------------------------------------
+# The Odds API
+# ---------------------------------------------------------------------------
+ODDS_API_BASE_URL = "https://api.the-odds-api.com/v4"
+MLB_SPORT_KEY = "baseball_mlb"
+ODDS_REGIONS = "us"
+ODDS_MARKETS = "h2h,spreads,totals"
+ODDS_FORMAT = "american"
+
+# ---------------------------------------------------------------------------
+# Weather API (weatherapi.com)
+# ---------------------------------------------------------------------------
+WEATHER_API_BASE_URL = "https://api.weatherapi.com/v1"
+
+# ---------------------------------------------------------------------------
+# Covers.com MLB injury URL
+# ---------------------------------------------------------------------------
+COVERS_MLB_URL = "https://www.covers.com/sport/baseball/mlb/injuries"
+
+# ---------------------------------------------------------------------------
+# DraftKings Network — baseball splits
+# Sport event-group ID for MLB = 84240 (from user-provided URL)
+# ---------------------------------------------------------------------------
+DRAFTKINGS_MLB_URL = "https://dknetwork.draftkings.com/draftkings-sportsbook-betting-splits/"
+DRAFTKINGS_MLB_SPORT_ID = "84240"
+DRAFTKINGS_DATE_FILTER = "n7days"
+
+# ---------------------------------------------------------------------------
+# Confidence Tier Thresholds (mirrors V8.0 loosened thresholds)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TierConfig:
+    name: str
+    min_confidence: float      # inclusive lower bound
+    units: float
+
+TIERS: list[TierConfig] = [
+    TierConfig("ELITE",     85.0, 3.0),
+    TierConfig("STRONGEST", 75.0, 2.5),
+    TierConfig("BEST BET",  68.0, 1.75),
+    TierConfig("GOLD",      60.0, 1.0),   # V8.0: GOLD = 60-67% (BETTING_CONFIG.tiers.GOLD = 60)
+    TierConfig("PASS",       0.0, 0.0),
+]
+
+# ---------------------------------------------------------------------------
+# Confidence Weights (must sum to 1.0)
+# ---------------------------------------------------------------------------
+CONFIDENCE_WEIGHTS: Dict[str, float] = {
+    "ev":          0.35,
+    "probability": 0.25,
+    "clv":         0.20,
+    "sharp_action":0.20,
+}
+
+# ---------------------------------------------------------------------------
+# EV Gate — only compute EV for odds within this range
+# MLB common: favourites can reach -300. Set wide enough to cover all MLB lines.
+# ---------------------------------------------------------------------------
+EV_ODDS_MIN = -400
+EV_ODDS_MAX = +400
+
+# ---------------------------------------------------------------------------
+# MLB-specific betting config
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class BettingConfig:
+    max_ml_odds: int = -200      # ignore heavy favourites beyond this
+    min_ev_threshold: float = 2.0
+    unit_size_dollars: float = 100.0
+    sp_gate_enabled: bool = True  # Block picks when SP is Out/Doubtful
+
+BETTING_CONFIG = BettingConfig()
+
+# ---------------------------------------------------------------------------
+# Pitcher Impact Scoring (0–100 scale)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class PitcherScoringConfig:
+    era_weight: float = 0.30
+    whip_weight: float = 0.25
+    k9_weight: float = 0.20
+    bb9_weight: float = 0.15
+    recent_form_weight: float = 0.10   # last 3 starts ERA
+    # Baseline reference values (league-average MLB)
+    league_avg_era: float = 4.20
+    league_avg_whip: float = 1.30
+    league_avg_k9: float = 8.80
+    league_avg_bb9: float = 3.10
+
+PITCHER_SCORING = PitcherScoringConfig()
+
+# ---------------------------------------------------------------------------
+# Automation intervals (minutes)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class SchedulerConfig:
+    full_refresh_min: int = 360
+    odds_min: int = 30
+    injuries_min: int = 120
+    weather_min: int = 240
+    dk_splits_min: int = 180
+    pitchers_min: int = 60
+    live_predictions_min: int = 10
+
+SCHEDULER_CONFIG = SchedulerConfig()

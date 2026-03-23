@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Bets Log{% endblock %}
+{% block topbar_title %}Bets Log{% endblock %}
+
+{% block content %}
+<!-- Summary cards -->
+<div class="cards" id="bets-cards">
+  <div class="card"><div class="card-label">Total Bets</div><div class="card-value blue" id="b-total">—</div></div>
+  <div class="card"><div class="card-label">Wins</div><div class="card-value green" id="b-wins">—</div></div>
+  <div class="card"><div class="card-label">Losses</div><div class="card-value red" id="b-losses">—</div></div>
+  <div class="card"><div class="card-label">Win Rate</div><div class="card-value" id="b-winrate">—</div></div>
+  <div class="card"><div class="card-label">P&L (units)</div><div class="card-value" id="b-pnl">—</div></div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="filter-tabs" id="status-filter">
+      <button class="filter-tab active" data-status="ALL">All</button>
+      <button class="filter-tab" data-status="ACTIVE">Active</button>
+      <button class="filter-tab" data-status="WON">Won</button>
+      <button class="filter-tab" data-status="LOST">Lost</button>
+    </div>
+    <span style="margin-left:auto"></span>
+    <button class="btn btn-secondary btn-sm" onclick="exportCSV()">↓ Export CSV</button>
+    <button class="btn btn-secondary btn-sm" onclick="loadBets()">↻ Refresh</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Matchup</th>
+        <th>Pick</th>
+        <th>Tier</th>
+        <th>Odds</th>
+        <th>Units</th>
+        <th>EV%</th>
+        <th>Conf%</th>
+        <th>CLV%</th>
+        <th>CLV Band</th>
+        <th>Adj Units</th>
+        <th>Result</th>
+        <th>P&L</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="bets-tbody">
+      <tr><td colspan="14"><div class="empty-state"><div class="empty-icon">📋</div><p>No bets logged yet.</p></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Settle modal -->
+<div class="modal-overlay" id="settle-modal">
+  <div class="modal">
+    <div class="modal-header">
+      Settle Bet
+      <button class="btn btn-ghost btn-icon" onclick="closeSettleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="settle-bet-id">
+      <div class="form-group">
+        <label class="form-label">Bet</label>
+        <div id="settle-bet-desc" style="font-size:13px;color:var(--text-secondary)"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Result</label>
+        <select class="select" id="settle-result" style="width:100%">
+          <option value="WON">Won</option>
+          <option value="LOST">Lost</option>
+          <option value="PUSH">Push</option>
+          <option value="VOID">Void</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Closing Price (optional)</label>
+        <input type="number" class="input input-number" id="settle-price" placeholder="-110">
+        <div class="form-hint">Used to compute final CLV</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeSettleModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSettle()">Settle</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLV refresh modal -->
+<div class="modal-overlay" id="clv-modal">
+  <div class="modal">
+    <div class="modal-header">
+      Refresh CLV
+      <button class="btn btn-ghost btn-icon" onclick="document.getElementById('clv-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="clv-bet-id">
+      <div class="form-group">
+        <label class="form-label">Current Market Price</label>
+        <input type="number" class="input input-number" id="clv-price" placeholder="-115">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('clv-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCLV()">Update CLV</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/bets.js"></script>
+{% endblock %}

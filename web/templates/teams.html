@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Team Registry{% endblock %}
+{% block topbar_title %}Team Registry{% endblock %}
+
+{% block head %}
+<style>
+/* ── Team Registry page ───────────────────────────────────────────────────── */
+.reg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.reg-toolbar input[type="text"] {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 10px;
+  font-size: 13px;
+  width: 220px;
+}
+.reg-toolbar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.reg-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Table wrapper */
+.reg-table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.reg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.reg-table th {
+  background: #161b22;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.reg-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.reg-table tr:last-child td { border-bottom: none; }
+.reg-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+/* Team name cell */
+.team-cell { display: flex; align-items: center; gap: 8px; }
+.team-abbr {
+  display: inline-block;
+  background: rgba(88,166,255,0.12);
+  color: #58a6ff;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 5px;
+  min-width: 30px;
+  text-align: center;
+}
+.team-full { color: var(--text); font-weight: 500; }
+.team-div  { color: var(--text-muted); font-size: 10px; }
+
+/* Editable source name cells */
+.src-cell {
+  position: relative;
+}
+.src-cell input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 6px;
+  width: 140px;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: text;
+}
+.src-cell input:hover {
+  border-color: var(--border);
+  background: rgba(255,255,255,0.04);
+}
+.src-cell input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(88,166,255,0.06);
+}
+.src-cell input.dirty {
+  border-color: #e3b341;
+  background: rgba(227,179,65,0.06);
+}
+.src-cell input.saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Lock badge */
+.lock-cell { text-align: center; }
+.lock-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+  opacity: 0.6;
+}
+.lock-btn:hover { opacity: 1; }
+.lock-btn.locked { opacity: 1; color: #e3b341; }
+.lock-btn.unlocked { color: var(--text-muted); }
+
+/* Save row button */
+.save-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  display: none;
+  transition: opacity 0.15s;
+}
+.save-btn.visible { display: inline-block; }
+.save-btn:hover { opacity: 0.85; }
+
+/* Division colour pills */
+.div-badge {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.div-badge.al-east    { background: rgba(255,99,99,0.15);  color: #ff6363; }
+.div-badge.al-central { background: rgba(255,165,0,0.15);  color: #ffa500; }
+.div-badge.al-west    { background: rgba(255,230,100,0.15);color: #f0c040; }
+.div-badge.nl-east    { background: rgba(88,166,255,0.15); color: #58a6ff; }
+.div-badge.nl-central { background: rgba(80,200,120,0.15); color: #50c878; }
+.div-badge.nl-west    { background: rgba(190,100,255,0.15);color: #be64ff; }
+
+/* Locked row tint */
+tr.row-locked td { background: rgba(227,179,65,0.03); }
+
+/* Notes column */
+.notes-input {
+  width: 160px !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reg-toolbar">
+  <input type="text" id="filter-input" placeholder="Filter teams…" oninput="filterRows(this.value)">
+  <button class="btn btn-secondary btn-sm" onclick="reloadRegistry()">↻ Reload Resolver</button>
+  <span class="reg-info" id="reg-info">Loading…</span>
+</div>
+
+<div class="reg-table-wrap">
+  <table class="reg-table" id="reg-table">
+    <thead>
+      <tr>
+        <th>Team</th>
+        <th>Division</th>
+        <th>Odds API Name</th>
+        <th>DraftKings Name</th>
+        <th>MLB Stats API Name</th>
+        <th>Covers Name</th>
+        <th>Notes</th>
+        <th style="text-align:center">Locked</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="reg-tbody">
+      <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/teams.js"></script>
+{% endblock %}

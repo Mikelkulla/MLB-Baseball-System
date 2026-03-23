@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Live Picks{% endblock %}
+{% block topbar_title %}Live Picks{% endblock %}
+
+{% block content %}
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="filter-tabs" id="tier-filter">
+      <button class="filter-tab active" data-tier="">All</button>
+      <button class="filter-tab" data-tier="ELITE" style="color:var(--tier-elite)">Elite</button>
+      <button class="filter-tab" data-tier="STRONGEST" style="color:var(--tier-strongest)">Strongest</button>
+      <button class="filter-tab" data-tier="BEST BET" style="color:var(--tier-best-bet)">Best Bet</button>
+      <button class="filter-tab" data-tier="GOLD" style="color:var(--tier-gold)">Gold</button>
+    </div>
+    <span style="margin-left:auto;font-size:12px;color:var(--text-muted)" id="picks-count"></span>
+    <span class="refresh-badge" style="margin-left:12px">Refreshes in <span class="refresh-countdown" id="countdown">60</span>s</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadPredictions()">↻ Refresh</button>
+  </div>
+
+  <table id="predictions-table">
+    <thead>
+      <tr>
+        <th onclick="sortTable('game_date')">Date</th>
+        <th onclick="sortTable('matchup')">Matchup</th>
+        <th onclick="sortTable('picked_team_name')">Pick (ML)</th>
+        <th onclick="sortTable('status')">Tier</th>
+        <th>Away SP</th>
+        <th>Home SP</th>
+        <th onclick="sortTable('bet_price')">Odds</th>
+        <th onclick="sortTable('prob_pct')">Prob%</th>
+        <th onclick="sortTable('ev_pct')">EV%</th>
+        <th onclick="sortTable('confidence_pct')">Conf%</th>
+        <th onclick="sortTable('safe_units')">Units</th>
+        <th>CLV Δ</th>
+        <th>SSS</th>
+        <th>SP Gate</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="predictions-tbody">
+      <tr><td colspan="15"><div class="empty-state"><div class="empty-icon">⚾</div><p>Loading…</p></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Log Bet modal -->
+<div class="modal-overlay" id="log-modal">
+  <div class="modal">
+    <div class="modal-header">
+      Log Bet
+      <button class="btn btn-ghost btn-icon" onclick="closeLogModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="log-game-id">
+      <div class="form-group">
+        <label class="form-label">Game</label>
+        <div id="log-game-desc" style="font-size:13px;color:var(--text-secondary)"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <input type="text" class="input" id="log-notes" placeholder="e.g. sharp action, line value" style="width:100%">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeLogModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmLogBet()">Log Bet</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/predictions.js"></script>
+{% endblock %}

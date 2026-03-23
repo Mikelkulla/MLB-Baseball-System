@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MLB System{% endblock %} — MLB Betting</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚾</div>
+      <div>
+        <div class="logo-text">MLB System</div>
+        <div class="logo-sub">v1.0 · Baseball</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Main</div>
+      <ul class="sidebar-nav">
+        <li><a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}"><i class="icon">◈</i> Dashboard</a></li>
+        <li><a href="/model" class="{% if active_page == 'model' %}active{% endif %}"><i class="icon">▦</i> MLB Model</a></li>
+        <li><a href="/predictions" class="{% if active_page == 'predictions' %}active{% endif %}"><i class="icon">◉</i> Live Picks</a></li>
+        <li><a href="/bets" class="{% if active_page == 'bets' %}active{% endif %}"><i class="icon">◎</i> Bets Log</a></li>
+        <li><a href="/analytics" class="{% if active_page == 'analytics' %}active{% endif %}"><i class="icon">◇</i> Analytics</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">System</div>
+      <ul class="sidebar-nav">
+        <li><a href="/config" class="{% if active_page == 'config' %}active{% endif %}"><i class="icon">◈</i> Configuration</a></li>
+        <li><a href="/teams"  class="{% if active_page == 'teams'  %}active{% endif %}"><i class="icon">⊞</i> Team Registry</a></li>
+        <li><a href="/logs"   class="{% if active_page == 'logs'   %}active{% endif %}"><i class="icon">≡</i> Logs</a></li>
+        <li><a href="/docs" target="_blank"><i class="icon">◻</i> API Docs</a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-section-label" style="padding:0 0 6px">Feed Health</div>
+      <div class="feed-status-mini" id="sidebar-feed-health">
+        <div class="feed-dot"><span class="dot" id="dot-OddsAPI"></span> OddsAPI</div>
+        <div class="feed-dot"><span class="dot" id="dot-DraftKings"></span> DraftKings</div>
+        <div class="feed-dot"><span class="dot" id="dot-Weather"></span> Weather</div>
+        <div class="feed-dot"><span class="dot" id="dot-Injuries"></span> Injuries</div>
+        <div class="feed-dot"><span class="dot" id="dot-Pitchers"></span> Pitchers</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">{% block topbar_title %}MLB Betting System{% endblock %}</div>
+      <div class="topbar-actions">
+        <span class="refresh-badge" id="last-refresh-time"></span>
+        <button class="btn btn-secondary btn-sm" id="btn-run-now" onclick="runNow()">▶ Run Now</button>
+      </div>
+    </header>
+
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Shared JS -->
+<script src="/static/js/api.js"></script>
+<script>
+  // Sidebar active link
+  document.querySelectorAll('.sidebar-nav a').forEach(a => {
+    if (a.getAttribute('href') === window.location.pathname) a.classList.add('active');
+  });
+
+  // Feed health dots in sidebar (poll every 60s)
+  async function refreshSidebarHealth() {
+    try {
+      const d = await API.get('/api/health');
+      const feeds = d.feeds || {};
+      Object.entries(feeds).forEach(([name, info]) => {
+        const dot = document.getElementById('dot-' + name);
+        if (dot) {
+          dot.className = 'dot ' + (info.status || '').toLowerCase();
+        }
+      });
+    } catch(e) {}
+  }
+  refreshSidebarHealth();
+  setInterval(refreshSidebarHealth, 60000);
+
+  // Run Now button
+  async function runNow() {
+    const btn = document.getElementById('btn-run-now');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">↻</span> Running…';
+    try {
+      const d = await API.post('/api/scheduler/run-now');
+      toast(`Refresh complete — ${d.picks_found} picks found`, 'success');
+      if (typeof onRefreshComplete === 'function') onRefreshComplete();
+    } catch(e) {
+      toast('Refresh failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '▶ Run Now';
+    }
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

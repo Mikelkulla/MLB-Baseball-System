@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Configuration{% endblock %}
+{% block topbar_title %}Configuration{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+  <p style="color:var(--text-muted);font-size:13px">Changes are saved to <code style="background:var(--bg-card);padding:2px 6px;border-radius:4px">output_data/config_overrides.json</code> and take effect on the next refresh.</p>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary" onclick="resetConfig()">↺ Reset Defaults</button>
+    <button class="btn btn-primary" id="save-btn" onclick="saveConfig()">✓ Save Changes</button>
+  </div>
+</div>
+
+<div class="config-grid">
+
+  <!-- Tier Thresholds -->
+  <div class="config-card">
+    <div class="config-card-header">⚡ Tier Thresholds</div>
+    <div class="config-card-body">
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;margin-bottom:8px">
+        <span style="font-size:11px;color:var(--text-muted)">Tier</span>
+        <span style="font-size:11px;color:var(--text-muted)">Min Confidence%</span>
+        <span style="font-size:11px;color:var(--text-muted)">Units</span>
+      </div>
+      <div id="tiers-config">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Confidence Weights -->
+  <div class="config-card">
+    <div class="config-card-header">⚖ Confidence Weights <span style="font-size:11px;color:var(--text-muted);margin-left:auto">must sum to 1.00</span></div>
+    <div class="config-card-body">
+      <div id="weights-config"><!-- Injected by JS --></div>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end">
+        Sum: <span id="weight-sum" class="weight-sum" style="margin-left:6px">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Betting Config -->
+  <div class="config-card">
+    <div class="config-card-header">💰 Betting Config</div>
+    <div class="config-card-body">
+      <div class="form-group">
+        <label class="form-label">Max ML Odds (e.g. -200)</label>
+        <input type="number" class="input input-number" id="cfg-max-ml" placeholder="-200">
+        <div class="form-hint">Ignore favourites heavier than this</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Min EV% Threshold</label>
+        <input type="number" class="input input-number" id="cfg-min-ev" step="0.1" placeholder="2.0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit Size ($)</label>
+        <input type="number" class="input input-number" id="cfg-unit-size" step="10" placeholder="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SP Gate</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="cfg-sp-gate" style="width:16px;height:16px;accent-color:var(--accent-blue)">
+          <span style="font-size:13px">Block picks when probable SP is Out/Doubtful</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pitcher Scoring Weights -->
+  <div class="config-card">
+    <div class="config-card-header">⚾ Pitcher Scoring Weights</div>
+    <div class="config-card-body">
+      <div id="pitcher-weights-config"><!-- Injected by JS --></div>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end">
+        Sum: <span id="pitcher-weight-sum" class="weight-sum" style="margin-left:6px">—</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Logging Config -->
+<div class="config-card" style="margin-bottom:24px">
+  <div class="config-card-header">📋 Logging</div>
+  <div class="config-card-body">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Log Level</label>
+        <select class="input" id="cfg-log-level">
+          <option value="DEBUG">DEBUG — very verbose (all internal steps)</option>
+          <option value="INFO">INFO — normal operation</option>
+          <option value="WARNING">WARNING — warnings and above</option>
+          <option value="ERROR">ERROR — errors only</option>
+          <option value="CRITICAL">CRITICAL — critical failures only</option>
+        </select>
+        <div class="form-hint">Controls what gets written to the log file. DEBUG captures every calculation step.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lines shown in viewer</label>
+        <input type="number" class="input input-number" id="cfg-log-lines" placeholder="500" min="50" max="5000">
+        <div class="form-hint">Default line count on the Logs page</div>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <a href="/logs" class="btn btn-secondary btn-sm">→ Open Log Viewer</a>
+    </div>
+  </div>
+</div>
+
+<!-- Scheduler Config -->
+<div class="config-card" style="margin-bottom:24px">
+  <div class="config-card-header">⏱ Refresh Intervals (minutes)</div>
+  <div class="config-card-body">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Odds API</label>
+        <input type="number" class="input" id="cfg-odds-min" placeholder="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Injuries</label>
+        <input type="number" class="input" id="cfg-injuries-min" placeholder="120">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Weather</label>
+        <input type="number" class="input" id="cfg-weather-min" placeholder="240">
+      </div>
+      <div class="form-group">
+        <label class="form-label">DraftKings Splits</label>
+        <input type="number" class="input" id="cfg-dk-min" placeholder="180">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pitchers</label>
+        <input type="number" class="input" id="cfg-pitchers-min" placeholder="60">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Live Predictions</label>
+        <input type="number" class="input" id="cfg-pred-min" placeholder="10">
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/config.js"></script>
+{% endblock %}
