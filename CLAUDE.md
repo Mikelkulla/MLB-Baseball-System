@@ -178,7 +178,7 @@ MLB Baseball System/
 │  4. bullpen probability adjustment (±4pp max)              │
 │  5. EV for both sides                                       │
 │  6. Pick by highest EV                                      │
-│  7. Soft EV gate: EV<0 + prob≥55% → cap units at 1.0u      │
+│  7. Soft EV gate: EV<0 + prob≥55% → GOLD at 1.0u (EV-CAP) │
 │     EV<0 + prob<55% → PASS                                  │
 │  8. CLV delta (opening vs current spread)                   │
 │  9. SharpSplit = ourHandle% - ourBets%  (signed)            │
@@ -260,7 +260,8 @@ EV = -(vig%), making every game PASS.
 ```python
 # Calculate EV for both sides, pick the higher one
 # Soft EV gate (EV_SOFT_GATE_PROB_MIN = 55.0):
-#   EV < 0  AND  prob >= 55% → pick kept, units capped at 1.0u  ("EV-CAP")
+#   EV < 0  AND  prob >= 55% → force tier=GOLD, safe_units=1.0u  ("EV-CAP")
+#                              (overrides 0u from PASS tier; higher tiers capped DOWN to 1.0u)
 #   EV < 0  AND  prob <  55% → PASS (0 units)
 ```
 
@@ -294,7 +295,7 @@ Steam-against cap:   CLV adverse ≥ 1.5pts → cap confidence at 74%
 Steam auto-pass:     CLV adverse ≥ 2.0pts → 0 units (tier kept)
 LineFlip cap:        spread sign changed + SharpScore < 70 → cap at 74%
 SP gate:             sp_gate_blocked = True → 0 units
-Soft EV gate:        EV < 0 AND prob ≥ 55% → units capped at 1.0u (keeps tier)
+Soft EV gate:        EV < 0 AND prob ≥ 55% → force GOLD at 1.0u ("EV-CAP")
                      EV < 0 AND prob < 55% → PASS (0 units)
 ```
 

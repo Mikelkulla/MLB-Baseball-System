@@ -8,7 +8,7 @@ Key alignments:
   (win by 2+, ~72% of ML wins) and using it circularly guarantees EV = -(vig%).
 - EV calculated against best available ML prices across all books.
 - Pick by highest EV side (not highest probability)
-- Negative EV → PASS (units zeroed, tier kept for display)
+- Soft EV gate: EV<0 + prob≥55% → GOLD at 1.0u (EV-CAP); EV<0 + prob<55% → PASS
 - SharpSplit = ourHandle% - ourBets%  (signed)
 - WPI        = 50 + (ourHandle - 50) * 1.5
 - SharpScore = 50 + SharpSplit*0.5 + (WPI-50)*0.4
@@ -319,15 +319,22 @@ class PredictionEngine:
         # through but cap units at 1.0u — covers spring training / data-sparse periods
         # where no independent probability edge exists yet but the model has some signal.
         # If EV is negative AND probability is below threshold → hard PASS (0 units).
+        #
+        # Important: safe_units is FORCED to 1.0 (not min(safe_units, 1.0)) because
+        # when the confidence engine returns PASS (safe_units=0), min(0, 1.0)=0 and
+        # the cap would do nothing. We also override tier_name to GOLD if it was PASS
+        # so the pick is visible in Live Picks.
         EV_SOFT_GATE_PROB_MIN = 55.0
         if ev_negative:
             if prob_pct >= EV_SOFT_GATE_PROB_MIN:
-                safe_units = min(safe_units, 1.0)
+                safe_units = 1.0   # force 1.0u — overrides 0 from PASS tier
+                if tier_name == "PASS":
+                    tier_name = "GOLD"  # minimum qualifying tier for EV-CAP picks
                 logger.info(
                     "[%s] EV-CAP — negative EV but prob=%.1f%% >= %.0f%% threshold "
-                    "(EV=%+.2f%%)  units capped at 1.0u  Conf=%.1f%%  WPI=%.0f",
+                    "(EV=%+.2f%%)  units forced to 1.0u  tier=%s  Conf=%.1f%%  WPI=%.0f",
                     matchup_label, prob_pct, EV_SOFT_GATE_PROB_MIN,
-                    ev_pct, confidence_pct, wpi,
+                    ev_pct, tier_name, confidence_pct, wpi,
                 )
             else:
                 safe_units = 0.0
